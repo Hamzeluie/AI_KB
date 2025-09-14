@@ -21,9 +21,11 @@ jobs:
           # Set fallback defaults
           HOST_DEFAULT="0.0.0.0"
           PORT_DEFAULT="8000"
+          TOKEN_DEFAULT="TEST"
 
           export HOST="$HOST_DEFAULT"
           export PORT="$PORT_DEFAULT"
+          export TOKEN="$TOKEN_DEFAULT"
 
           # Check if .env exists at that path
           if [ -f "$ENV_FILE" ]; then
@@ -103,6 +105,7 @@ jobs:
             --name kb-server-container \
             --restart unless-stopped \
             -p "${{ env.PORT }}":8000 \
+            -e API_KEY="${{ env.TOKEN }}" \
             kb-server:latest
       
       
