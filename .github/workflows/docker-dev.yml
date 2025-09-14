@@ -143,15 +143,15 @@ jobs:
 
       - name: 🧪 Run kb WebSocket Test create
         run: |
-          source test_create.sh
+          DASHBOARD_PORT="$PORT" source test_create.sh
       
       - name: 🧪 Run kb WebSocket Test get
         run: |
-          source test_get.sh
+          DASHBOARD_PORT="$PORT" source test_get.sh
   
       - name: 🧪 Run kb WebSocket Test delete
         run: |
-          source test_delete.sh
+          DASHBOARD_PORT="$PORT" source test_delete.sh
   
   
   pushing_to_mehdi_origin:

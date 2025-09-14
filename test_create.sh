@@ -8,8 +8,9 @@ KB_ID="test_kb"
 API_KEY="test_api_key"                # Must match config.yaml: API_KEY
 
 # Orchestrator (Dashboard) Details
-DASHBOARD_HOST="0.0.0.0"
-DASHBOARD_PORT="8000"
+DASHBOARD_HOST="${DASHBOARD_HOST:-localhost}" 
+DASHBOARD_PORT="${DASHBOARD_PORT:-8000}"   
+
 
 URL="http://$DASHBOARD_HOST:$DASHBOARD_PORT/db/$OWNER_ID"
 
