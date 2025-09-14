@@ -1,0 +1,28 @@
+[project]
+name = "ai-kb"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "Hamzeluie",email = "mehdihamze73@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.11,<3.14"
+dependencies = [
+    "pyyaml (>=6.0.2,<7.0.0)",
+    "python-dotenv (>=1.1.1,<2.0.0)",
+    "fastapi (>=0.116.1,<0.117.0)",
+    "langchain (>=0.3.27,<0.4.0)",
+    "numpy (>=2.3.3,<3.0.0)",
+    "transformers (>=4.56.1,<5.0.0)",
+    "qdrant-client (>=1.15.1,<2.0.0)",
+    "uvicorn (>=0.35.0,<0.36.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.gpu.dependencies]
+torch = "^2.8.0"
+

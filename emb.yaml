@@ -1,0 +1,17 @@
+# Vector Store Configuration
+embedding:
+  model: "Alibaba-NLP/gte-multilingual-base"
+  device: "cuda"
+  normalize_embeddings: true
+  multi_process: true
+  dimension: 768
+
+vectorstore:
+  persist_dir: "qdrant_schedule_price_multilingual_opt"
+
+document_processing:
+  chunk_size: 50
+  chunk_overlap: 10
+
+retrieval:
+  top_k: 3
