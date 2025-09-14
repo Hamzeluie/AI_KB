@@ -30,6 +30,7 @@ jobs:
           # Check if .env exists at that path
           if [ -f "$ENV_FILE" ]; then
             echo "✅ .env found at $ENV_FILE — loading variables..."
+            sed -i 's/\r$//' "$ENV_FILE"
             set -a
             source "$ENV_FILE"
             set +a
