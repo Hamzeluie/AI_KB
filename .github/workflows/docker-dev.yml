@@ -34,7 +34,7 @@ jobs:
             source "$ENV_FILE"
             set +a
           else
-            echo "⚠️ .env not found at $ENV_FILE — using defaults: HOST=$HOST_DEFAULT, PORT=$PORT_DEFAULT"
+            echo "⚠️ .env not found at $ENV_FILE — using defaults: HOST=$HOST_DEFAULT, PORT=$PORT_DEFAULT", TOKEN=$TOKEN_DEFAULT"
           fi
 
           # Validate
@@ -48,6 +48,7 @@ jobs:
           # Save to GITHUB_ENV
           echo "HOST=$HOST" >> $GITHUB_ENV
           echo "PORT=$PORT" >> $GITHUB_ENV
+          echo "TOKEN=$TOKEN" >> $GITHUB_ENV
 
       - name: 🔍 Checkout repository
         uses: actions/checkout@v4
