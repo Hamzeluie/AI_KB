@@ -13,145 +13,116 @@ jobs:
   build-and-push:
     runs-on: self-hosted
     steps:
-      - name: Always work from repo root
+      - name: 🧩 Load .env from absolute path
         run: |
-          echo "Repo root: "${{ github.workspace }}
-          cd "${{ github.workspace }}"
-          pwd
-          ls -la
-      - name: Read .env file and set environment variables
-        id: dotenv
+          # 👇 Define absolute path to your .env file
+          ENV_FILE="/home/ubuntu/borhan/whole_pipeline/vexu/AI_KB/.env"
+
+          # Set fallback defaults
+          HOST_DEFAULT="0.0.0.0"
+          PORT_DEFAULT="5001"
+          API_KEY_DEFAULT="TEST"
+
+          export HOST="$HOST_DEFAULT"
+          export PORT="$PORT_DEFAULT"
+          export API_KEY="$API_KEY_DEFAULT"
+
+          # Check if .env exists at that path
+          if [ -f "$ENV_FILE" ]; then
+            echo "✅ .env found at $ENV_FILE — loading variables..."
+            sed -i 's/\r$//' "$ENV_FILE"
+            sed -i 's/[^[:print:]]//g' "$ENV_FILE"
+            set -a
+            source "$ENV_FILE"
+            set +a
+          else
+            echo "⚠️ .env not found at $ENV_FILE — using defaults: HOST=$HOST_DEFAULT, PORT=$PORT_DEFAULT, API_KEY=$API_KEY_DEFAULT"
+          fi
+
+          # Validate
+          if [ -z "$HOST" ] || [ -z "$PORT" ]; then
+            echo "❌ Error: HOST or PORT is not set (even after fallback)"
+            exit 1
+          fi
+
+          echo "📌 Final config: HOST=$HOST, PORT=$PORT"
+
+          # Save to GITHUB_ENV
+          echo "HOST=$HOST" >> $GITHUB_ENV
+          echo "PORT=$PORT" >> $GITHUB_ENV
+          echo "API_KEY=$API_KEY" >> $GITHUB_ENV
+
+      - name: 🔍 Checkout repository
+        uses: actions/checkout@v4
+
+
+      - name: 🐳 Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Docker image
         run: |
-          # Read .env line by line and extract key-value pairs
-          while IFS='=' read -r key value; do
-            # Skip empty lines or comments
-            [[ -z "$key" || "$key" =~ ^# ]] && continue
-            # Escape single quotes in value for shell safety
-            escaped_value="${value//\'/\'\\\'\'}"
-            # Set as output (to use in later steps)
-            echo "Setting $key=$value"
-            echo "$key=$value" >> $GITHUB_ENV
-          done < .env
+          docker build --no-cache -t kb-server:latest .
       
-      
-      - name: Display loaded env vars (for debugging)
+      - name: Stop and remove previous container (optional)
         run: |
-          echo "HOST is: $HOST"
-          echo "PORT is: $PORT"
-
-
-      # - name: 🧩 Load .env from absolute path
-      #   run: |
-      #     # 👇 Define absolute path to your .env file
-      #     ENV_FILE="/home/ubuntu/borhan/whole_pipeline/vexu/AI_KB/.env"
-
-      #     # Set fallback defaults
-      #     HOST_DEFAULT="0.0.0.0"
-      #     PORT_DEFAULT="8000"
-      #     API_KEY_DEFAULT="TEST"
-
-      #     export HOST="$HOST_DEFAULT"
-      #     export PORT="$PORT_DEFAULT"
-      #     export API_KEY="$API_KEY_DEFAULT"
-
-      #     # Check if .env exists at that path
-      #     if [ -f "$ENV_FILE" ]; then
-      #       echo "✅ .env found at $ENV_FILE — loading variables..."
-      #       sed -i 's/\r$//' "$ENV_FILE"
-      #       sed -i 's/[^[:print:]]//g' "$ENV_FILE"
-      #       set -a
-      #       source "$ENV_FILE"
-      #       set +a
-      #     else
-      #       echo "⚠️ .env not found at $ENV_FILE — using defaults: HOST=$HOST_DEFAULT, PORT=$PORT_DEFAULT, API_KEY=$API_KEY_DEFAULT"
-      #     fi
-
-      #     # Validate
-      #     if [ -z "$HOST" ] || [ -z "$PORT" ]; then
-      #       echo "❌ Error: HOST or PORT is not set (even after fallback)"
-      #       exit 1
-      #     fi
-
-      #     echo "📌 Final config: HOST=$HOST, PORT=$PORT"
-
-      #     # Save to GITHUB_ENV
-      #     echo "HOST=$HOST" >> $GITHUB_ENV
-      #     echo "PORT=$PORT" >> $GITHUB_ENV
-      #     echo "API_KEY=$API_KEY" >> $GITHUB_ENV
-
-      # - name: 🔍 Checkout repository
-      #   uses: actions/checkout@v4
-
-
-      # - name: 🐳 Set up Docker Buildx
-      #   uses: docker/setup-buildx-action@v3
-
-      # - name: Build Docker image
-      #   run: |
-      #     docker build --no-cache -t kb-server:latest .
-      
-      # - name: Stop and remove previous container (optional)
-      #   run: |
-      #     if [ $(docker ps -a -q -f name=kb-server-container) ]; then
-      #       docker stop kb-server-container || true
-      #       docker rm kb-server-container || true
-      #     fi
+          if [ $(docker ps -a -q -f name=kb-server-container) ]; then
+            docker stop kb-server-container || true
+            docker rm kb-server-container || true
+          fi
 
    
-      # - name: 🧹 Remove existing container by name (if exists)
-      #   run: |
-      #     CONTAINER_NAME="kb-server-container"
-      #     if [ $(docker ps -a -q -f name=^/${CONTAINER_NAME}$) ]; then
-      #       echo "⚠️ Container '$CONTAINER_NAME' exists. Stopping and removing..."
-      #       docker stop $CONTAINER_NAME 2>/dev/null || true
-      #       docker rm $CONTAINER_NAME 2>/dev/null || true
-      #       echo "✅ Container '$CONTAINER_NAME' removed."
-      #     else
-      #       echo "✅ No existing container named '$CONTAINER_NAME' found."
-      #     fi
+      - name: 🧹 Remove existing container by name (if exists)
+        run: |
+          CONTAINER_NAME="kb-server-container"
+          if [ $(docker ps -a -q -f name=^/${CONTAINER_NAME}$) ]; then
+            echo "⚠️ Container '$CONTAINER_NAME' exists. Stopping and removing..."
+            docker stop $CONTAINER_NAME 2>/dev/null || true
+            docker rm $CONTAINER_NAME 2>/dev/null || true
+            echo "✅ Container '$CONTAINER_NAME' removed."
+          else
+            echo "✅ No existing container named '$CONTAINER_NAME' found."
+          fi
 
-      # - name: 💣 Kill host process using port ${{ env.PORT }} (if any)
-      #   run: |
-      #     PORT=${{ env.PORT }}
-      #     PID=$(lsof -i :$PORT -t) || true
-      #     if [ -n "$PID" ]; then
-      #       echo "🧨 Port $PORT is held by process PID: $PID"
-      #       kill -9 $PID 2>/dev/null || echo "⚠️ Failed to kill PID $PID"
-      #       sleep 2
-      #     else
-      #       echo "✅ No host process found on port $PORT"
-      #     fi
-
+      - name: 💣 Kill host process using port ${{ env.PORT }} (if any)
+        run: |
+          PORT=${{ env.PORT }}
+          PID=$(sudo lsof -i :$PORT -t) || true
+          if [ -n "$PID" ]; then
+            echo "🧨 Port $PORT is held by process PID: $PID"
+            sudo kill -9 $PID 2>/dev/null || echo "⚠️ Failed to kill PID $PID"
+            sleep 2
+          else
+            echo "✅ No host process found on port $PORT"
+          fi
 
       
-      
-      # - name: Run Docker container
-      #   run: |
-      #     echo "Starting container with HOST=${{ env.HOST }} PORT=${{ env.PORT }}"
-      #     docker run -d \
-      #       --gpus all \
-      #       --name kb-server-container \
-      #       --restart unless-stopped \
-      #       -p "${{ env.PORT }}":8000 \
-      #       -e API_KEY="${{ env.API_KEY }}" \
-      #       kb-server:latest
+      - name: Run Docker container
+        run: |
+          echo "Starting container with HOST=${{ env.HOST }} PORT=${{ env.PORT }}"
+          docker run -d \
+            --gpus all \
+            --name kb-server-container \
+            --restart unless-stopped \
+            -p "${{ env.PORT }}":8000 \
+            -e API_KEY="${{ env.API_KEY }}" \
+            kb-server:latest
       
       
             
-      # - name: 🧹 Cleanup old Docker images
-      #   run: |
-      #     echo "🧹 Removing dangling images..."
-      #     sudo docker container prune -f
-      #     docker image prune -f
+      - name: 🧹 Cleanup old Docker images
+        run: |
+          echo "🧹 Removing dangling images..."
+          sudo docker container prune -f
+          docker image prune -f
       
       
-      # - name: Show running containers
-      #   run: docker ps
+      - name: Show running containers
+        run: docker ps
 
-      # - name: Output container logs (optional, for debugging)
-      #   run: |
-      #     sleep 5
-      #     docker logs kb-server-container
+      - name: Output container logs (optional, for debugging)
+        run: |
+          sleep 5
+          docker logs kb-server-container
 
 
 
