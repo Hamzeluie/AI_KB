@@ -15,8 +15,8 @@ jobs:
     steps:
       - name: Always work from repo root
         run: |
-          echo "Repo root: $GITHUB_WORKSPACE"
-          cd "$GITHUB_WORKSPACE"
+          echo "Repo root: "${{ github.workspace }}
+          cd "${{ github.workspace }}"
           pwd
           ls -la
       - name: Read .env file and set environment variables
