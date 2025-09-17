@@ -148,15 +148,15 @@ jobs:
         run: |
           pip install websockets librosa soundfile numpy
 
-      - name: 🧪 Run kb WebSocket Test create
+      - name: 🧪 Run kb WebSocket Test create "$TEST_PORT"
         run: |
           DASHBOARD_PORT="$TEST_PORT" source test_create.sh
-      
-      - name: 🧪 Run kb WebSocket Test get
+
+      - name: 🧪 Run kb WebSocket Test get "$TEST_PORT"
         run: |
           DASHBOARD_PORT="$TEST_PORT" source test_get.sh
-  
-      - name: 🧪 Run kb WebSocket Test delete
+
+      - name: 🧪 Run kb WebSocket Test delete "$TEST_PORT"
         run: |
           DASHBOARD_PORT="$TEST_PORT" source test_delete.sh
   
