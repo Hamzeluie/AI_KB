@@ -9,7 +9,7 @@ API_KEY="test"                # Must match config.yaml: API_KEY
 
 # Orchestrator (Dashboard) Details
 DASHBOARD_HOST="${DASHBOARD_HOST:-0.0.0.0}" 
-DASHBOARD_PORT="${DASHBOARD_TEST_PORT:-5003}"   
+DASHBOARD_PORT="${DASHBOARD_PORT:-5003}"   
 
 
 URL="http://$DASHBOARD_HOST:$DASHBOARD_PORT/db/$OWNER_ID"

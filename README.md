@@ -48,7 +48,7 @@ with:
 
 
         docker build --no-cache -t kb-server .
-        docker run -d --name kb-server-container --gpus all -p 5003:5003 -e API_KEY="test" kb-server 
+        docker run -d --name kb-server-container --gpus all -p 5003:8000 -e API_KEY="test" kb-server 
 
 
 # Input/Output structure
