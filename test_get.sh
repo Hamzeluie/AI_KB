@@ -2,7 +2,7 @@
 
 # Configuration
 OWNER_ID="123"
-API_KEY="test_api_key"
+API_KEY="test"
 QUERY="السعر بلوتوث"
 KB_ID="test_kb"
 LIMIT=3
