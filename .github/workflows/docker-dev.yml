@@ -20,11 +20,13 @@ jobs:
 
           # Set fallback defaults
           HOST_DEFAULT="0.0.0.0"
-          PORT_DEFAULT="5002"
+          PORT_DEFAULT="8000"
+          TEST_PORT_DEFAULT="5003"
           API_KEY_DEFAULT="TEST"
 
           export HOST="$HOST_DEFAULT"
           export PORT="$PORT_DEFAULT"
+          export TEST_PORT="$TEST_PORT_DEFAULT"
           export API_KEY="$API_KEY_DEFAULT"
 
           # Check if .env exists at that path
@@ -36,20 +38,21 @@ jobs:
             source "$ENV_FILE"
             set +a
           else
-            echo "⚠️ .env not found at $ENV_FILE — using defaults: HOST=$HOST_DEFAULT, PORT=$PORT_DEFAULT, API_KEY=$API_KEY_DEFAULT"
+            echo "⚠️ .env not found at $ENV_FILE — using defaults: HOST=$HOST_DEFAULT, PORT=$PORT_DEFAULT, API_KEY=$API_KEY_DEFAULT ,  TEST_PORT=$TEST_PORT_DEFAULT"
           fi
 
           # Validate
-          if [ -z "$HOST" ] || [ -z "$PORT" ]; then
-            echo "❌ Error: HOST or PORT is not set (even after fallback)"
+          if [ -z "$HOST" ] || [ -z "$PORT" ] || [ -z "$TEST_PORT" ]; then
+            echo "❌ Error: HOST, PORT or TEST_PORT is not set (even after fallback)"
             exit 1
           fi
 
-          echo "📌 Final config: HOST=$HOST, PORT=$PORT"
+          echo "📌 Final config: HOST=$HOST, PORT=$PORT, TEST_PORT=$TEST_PORT"
 
           # Save to GITHUB_ENV
           echo "HOST=$HOST" >> $GITHUB_ENV
           echo "PORT=$PORT" >> $GITHUB_ENV
+          echo "TEST_PORT=$TEST_PORT" >> $GITHUB_ENV
           echo "API_KEY=$API_KEY" >> $GITHUB_ENV
 
       - name: 🔍 Checkout repository
@@ -103,7 +106,7 @@ jobs:
             --gpus all \
             --name kb-server-container \
             --restart unless-stopped \
-            -p "${{ env.PORT }}":8000 \
+            -p "${{ env.TEST_PORT }}":8000 \
             -e API_KEY="${{ env.API_KEY }}" \
             kb-server:latest
       
@@ -145,15 +148,15 @@ jobs:
 
       - name: 🧪 Run kb WebSocket Test create
         run: |
-          DASHBOARD_PORT="$PORT" source test_create.sh
+          DASHBOARD_PORT="$TEST_PORT" source test_create.sh
       
       - name: 🧪 Run kb WebSocket Test get
         run: |
-          DASHBOARD_PORT="$PORT" source test_get.sh
+          DASHBOARD_PORT="$TEST_PORT" source test_get.sh
   
       - name: 🧪 Run kb WebSocket Test delete
         run: |
-          DASHBOARD_PORT="$PORT" source test_delete.sh
+          DASHBOARD_PORT="$TEST_PORT" source test_delete.sh
   
   
   pushing_to_mehdi_origin:
