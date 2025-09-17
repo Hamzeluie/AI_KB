@@ -62,9 +62,9 @@ jobs:
       - name: 🐳 Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      # - name: Build Docker image
-      #   run: |
-      #     docker build --no-cache -t kb-server:latest .
+      - name: Build Docker image
+        run: |
+          docker build --no-cache -t kb-server:latest .
       
       - name: Stop and remove previous container (optional)
         run: |
@@ -147,6 +147,7 @@ jobs:
       - name: 📦 Install dependencies
         run: |
           pip install websockets librosa soundfile numpy
+          echo "📌 Final config: HOST=$HOST, PORT=$PORT, TEST_PORT=$TEST_PORT"
 
       - name: 🧪 Run kb WebSocket Test create "$TEST_PORT"
         run: |
