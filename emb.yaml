@@ -7,7 +7,8 @@ embedding:
   dimension: 768
 
 vectorstore:
-  persist_dir: "qdrant_schedule_price_multilingual_opt"
+  persist_dir: "db/qdrant_schedule_price_multilingual_opt"
+  # persist_dir: "/home/ubuntu/borhan/whole_pipeline/vexu/db/qdrant_schedule_price_multilingual_opt"
 
 document_processing:
   chunk_size: 50

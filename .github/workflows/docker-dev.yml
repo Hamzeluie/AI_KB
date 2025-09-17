@@ -62,9 +62,9 @@ jobs:
       - name: 🐳 Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
 
-      - name: Build Docker image
-        run: |
-          docker build --no-cache -t kb-server:latest .
+      # - name: Build Docker image
+      #   run: |
+      #     docker build --no-cache -t kb-server:latest .
       
       - name: Stop and remove previous container (optional)
         run: |
@@ -102,12 +102,14 @@ jobs:
       - name: Run Docker container
         run: |
           echo "Starting container with HOST=${{ env.HOST }} PORT=${{ env.PORT }}"
+          db_path="/home/ubuntu/borhan/whole_pipeline/vexu/AI_KB/db"
           docker run -d \
             --gpus all \
             --name kb-server-container \
             --restart unless-stopped \
             -p "${{ env.TEST_PORT }}":8000 \
             -e API_KEY="${{ env.API_KEY }}" \
+            -v ${db_path}:/app/db \
             kb-server:latest
       
       
