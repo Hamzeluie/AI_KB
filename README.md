@@ -52,17 +52,97 @@ with:
 
 
 # Input/Output structure
-input and output of the service in dictionary structure.
+there are four async function.
 
-## input structure:
+## **create_document**: 
+post http request. endpoint structure "db/<owner_id>". create new knwledge base.
+
+### input structure:
+
+        
+        {
+                "kb_id": "string",
+                "owner_id": "string",
+                "document": 
+                        {
+                        "key1": {
+                                "field1": "value1",
+                                "field2": "value2"
+                                },
+                        "key2": {
+                                "field1": "value1",
+                                "field2": "value2"
+                                }
+                        }
+        }
+
+### output structure
 
 
         {
-        "kb_id": <knowledge base ID>,
-        "owner_id": <owner ID>,
-        "document": {<dictionary or text>}
+        "status": "success",
+        "document": "Document created successfully",
+        "kb_id": "string",
+        "owner_id": "string"
+        }
+
+## **get_document**: 
+get http request. endpoint structure "db/<owner_id>". apply a query with the **owner_id** to get the knowledge base.
+### input structure
+
+        {
+        "query_text": "string",
+        "kb_id": ["string"],
+        "limit": integer
+        }
+### output structure
+
+
+        {
+                "status": "success",
+                "owner_id": string,
+                "documents": string,
+                "count": integer,
         }
 
 
-## output structure:
+## **delete_document**: 
+delete http request. endpoint structure "/db/<owner_id>/<kb_id>". delete a knowledge base.
+### input structure
+
+        "http://<HOST>:<PORT>/db/<OWNER_ID>/<KB_ID>"
+### output structure
+
+        {
+                "status": "success", 
+                "owner_id": string, 
+                "message": "Document deleted"
+        }
+
+## **websocket_search**: 
+websocket realtime search. endpoint structure "/ws/search/<owner_id>". 
+### input structure
+
+        {
+                "query_text": string,
+                "kb_id": string,
+                "limit": integer,
+        }
+        
+### output structure
+
+        {
+                "status": "success",
+                "owner_id": string,
+                "kb_id": string,
+                "query": string,
+                "results": 
+                        {
+                                "score": string,
+                                "content": string,
+                                "metadata": string,
+                        }
+                ,
+                "count": integer,
+        }
 
