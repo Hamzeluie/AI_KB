@@ -65,4 +65,4 @@ input and output of the service in dictionary structure.
 
 
 ## output structure:
-
+Retrieved data in string format
