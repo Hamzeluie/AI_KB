@@ -1,5 +1,7 @@
+import asyncio
 import json
 import os
+import sys
 from pathlib import Path
 from typing import Any, Dict, List, Union
 
@@ -70,6 +72,11 @@ class SearchResponse(BaseModel):
     query: str
     results: List[SearchResult]
     count: int
+
+
+@app.get("/health")
+def health():
+    return {"status": "ok"}
 
 
 @app.post(f"/db/{{owner_id}}")

@@ -48,7 +48,7 @@ with:
 
 
         docker build --no-cache -t kb-server .
-        docker run -d --name kb-server-container --gpus all -v <path to qdrant_schedule_price_multilingual_opt>:/app/db -p 5003:8000 -e API_KEY="test" kb-server 
+        docker run -d --name kb-server-container --network vexu_default --gpus all -v <path to qdrant_schedule_price_multilingual_opt>:/app/db -p 5003:8000 -e API_KEY="test" kb-server 
 
 
 # Input/Output structure

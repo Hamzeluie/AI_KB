@@ -1,31 +1,54 @@
 import asyncio
-import websockets
+import json
 import urllib.parse
-print("🚨 DEBUG: websockets version =", websockets.__version__)
+
+from websockets.legacy.client import connect as websockets_connect
+
 # --- CONFIGURE THESE ---
-API_KEY = "teseti"  # 👈 Replace with real key from your YAML
-PHONE = "+12345952496"
-# SESSION_ID = "e00f8d55-b5c7-4b87-9441-c7bf501e5366"
+API_KEY = "test"
+# PHONE = "+12345952496"
+PHONE = "123"
+QUERY = "السعر بلوتوث"
+KB_ID = ["test_kb"]
 
-# URL-encode the phone number — + becomes %2B
 ENCODED_PHONE = urllib.parse.quote(PHONE)
-
-RAG_URI = f"ws://0.0.0.0:5003/ws/search/{ENCODED_PHONE}"
-
+RAG_URI = f"ws://localhost:5003/ws/search/{PHONE}"
 
 
 async def test_rag_connection():
     headers = {"api-key": API_KEY}
+    print(f"📡 Connecting to: {RAG_URI}")
     try:
-        async with websockets.connect(RAG_URI, extra_headers=headers, ping_interval=None) as ws:
+        async with websockets_connect(
+            RAG_URI, extra_headers=headers, ping_interval=None
+        ) as ws:
             print("✅ RAG WebSocket: Connected successfully")
-            # Optionally send/receive a test message
-            # await ws.send('{"type": "ping"}')
-            # response = await ws.recv()
-            # print(f"RAG Response: {response}")
+
+            # --- 1. Wrapped Query Test ---
+            request = {
+                "query_text": QUERY,
+                "kb_id": KB_ID,
+                "limit": 3,
+            }
+            await ws.send(json.dumps(request))
+            response = await asyncio.wait_for(ws.recv(), timeout=5.0)
+            print(f"📡 Wrapped Query Response: {response}")
+
+            # --- 2. Flat Query Test ---
+            flat_query = {
+                "query_text": QUERY,
+                "kb_id": KB_ID,
+                "limit": 3,
+            }
+            await ws.send(json.dumps(flat_query, ensure_ascii=False))
+            response = await ws.recv()
+            print(f"📡 Flat Query Response: {response}")
+
     except Exception as e:
         print(f"❌ RAG WebSocket Failed: {type(e).__name__}: {e}")
+        import traceback
 
+        traceback.print_exc()
 
 
 async def main():
