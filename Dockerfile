@@ -5,6 +5,7 @@ ENV DEBIAN_FRONTEND=noninteractive
 
 # Remove Python installation via apt and use deadsnakes PPA for stable Python
 RUN apt-get update && apt-get install -y \
+    curl \
     software-properties-common \
     libsndfile1 \
     libsamplerate0-dev \
