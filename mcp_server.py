@@ -61,31 +61,11 @@ async def lifespan(app):
 
 mcp = FastMCP("RAG MCP Server", lifespan=lifespan)
 
-@mcp.tool
-async def agent(prompt: str) -> str:
-    """Simple agent tool using Cohere's chat model."""
-    import cohere
-
-    co = cohere.ClientV2(os.getenv("COHERE_API_KEY"))
-    response = co.chat(
-        model="command-a-03-2025", messages=[{"role": "user", "content": prompt}]
-    )
     
-    print(type(response))  # Still prints the type for debugging
-
-    # Extract the actual assistant reply text
-    if response.message and response.message.content:
-        # Assuming first content item is text
-        reply_text = response.message.content[0].text
-        return reply_text
-    else:
-        return "No response generated."
-    
-
 @mcp.tool
 async def search(query: str) -> str:
     """
-    Search the knowledge base using the RAG WebSocket connection.
+    Search the knowledge base, this tool can be called to answer user queries about item's price.
     Sends the query and returns the response as a JSON string.
     """
     global rag_ws
@@ -115,6 +95,7 @@ async def search(query: str) -> str:
     except Exception as e:
         print(f"❌ Search error: {type(e).__name__}: {e}")
         return json.dumps({"error": str(e)})
+    
 
 
 if __name__ == "__main__":
