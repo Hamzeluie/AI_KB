@@ -83,6 +83,7 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                 if delta:
                     text_feat = TextFeatures(
                         sid=req.sid,
+                        agent_name=req.agent_name,
                         text=delta,
                         priority=req.priority,
                         created_at=time.time(),
@@ -174,6 +175,7 @@ class RedisQueueManager(AbstractQueueManagerServer):
                     batch.append(
                         RAGFeatures(
                             sid=req.sid,
+                            agent_name=req.agent_name,
                             text=req.text,
                             owner_id=status_obj.owner_id,
                             kb_id=status_obj.kb_id,
@@ -242,6 +244,7 @@ class InferenceService(AbstractInferenceServer):
         async for text_feat in self.inference_engine._process_single(req):
             text_feat = TextFeatures(
                 sid=text_feat.sid,
+                agent_name=text_feat.agent_name,
                 priority=text_feat.priority,
                 text=text_feat.text,
                 created_at=text_feat.created_at,

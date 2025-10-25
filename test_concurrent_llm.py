@@ -55,7 +55,7 @@ class SttFeatures(Features):
 # Redis configuration (must match your RAG service)
 INPUT_CHANNELS = ["STT:high", "STT:low"]
 OUTPUT_CHANNELS = ["RAG:high", "RAG:low"]
-ACTIVE_SESSIONS_KEY = "call_agent:active_sessions"
+ACTIVE_SESSIONS_KEY = "call:active_sessions"
 
 SAMPLE_RATE = int(os.getenv("VAD_SAMPLE_RATE", 16000))
 AGENT_NAME = "CALL"
@@ -136,6 +136,7 @@ async def publish_stt_requests(redis_client, num_requests: int = 5):
         # ),
         TextFeatures(
             sid="test_sid_4",
+            agent_name="call",
             priority="high",
             created_at=time.time(),
             text="I love music.",
