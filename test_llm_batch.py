@@ -39,13 +39,13 @@ test_requests = [
     {
         "session_id": "session_C_789",
         "owner_id": "+12345952496",
-        "user_prompt": "I am Borhan?",
+        "user_prompt": "I am Borhan.",
         "kb_id": "kb+12345952496_en"
     },
     {
         "session_id": "session_B_456",
         "owner_id": "+12345952496",
-        "user_prompt": "I am Jack",
+        "user_prompt": "I am Jack.",
         "kb_id": "kb+12345952496_en"
     },
     {
