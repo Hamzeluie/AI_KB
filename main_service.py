@@ -45,7 +45,16 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                 # ================================
                 # CALL fro getting system prompt and temprature and ...
                 # ================================
-                self.chat_sessions[req.sid] = ChatSession(self.llm_manager, self.config)
+                kb_ids = ["kb_1"]
+                system_prompt = ""
+                kb_limit = 0
+                self.chat_sessions[req.sid] = ChatSession(
+                    llm_manager=self.llm_manager,
+                    system_prompt="",
+                    kb_ids=["kb_1"],
+                    kb_limit=5,
+                    config=self.config,
+                )
 
             session = self.chat_sessions[req.sid]
 
@@ -53,8 +62,8 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
             retrieved_docs = await vector_search(
                 owner_id=req.owner_id,
                 query_text=req.text,
-                kb_id=req.kb_id,
-                limit=req.kb_limit,
+                kb_id=session.kb_ids,
+                limit=session.kb_limit,
             )
 
             context_str = (
@@ -91,7 +100,7 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                 if delta:
                     text_feat = TextFeatures(
                         sid=req.sid,
-                        agent_name=req.agent_name,
+                        agent_type=req.agent_type,
                         text=delta,
                         priority=req.priority,
                         created_at=time.time(),
@@ -101,7 +110,6 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                 prev_text = current_text
 
             session.add_message("assistant", current_text)
-            print(f"🤖=>Completed response for {req.sid}: {current_text}")
 
         except Exception as e:
             logger.error(f"Error processing request {req.sid}: {e}", exc_info=True)
@@ -135,7 +143,7 @@ class RedisQueueManager(AbstractQueueManagerServer):
 
     async def get_status_object(self, req: Features) -> AgentSessions:
         raw = await self.redis_client.hget(
-            f"{req.agent_name}:{self.active_sessions_key}", req.sid
+            f"{req.agent_type}:{self.active_sessions_key}", req.sid
         )
         if raw is None:
             return None
@@ -150,7 +158,7 @@ class RedisQueueManager(AbstractQueueManagerServer):
         if status_obj.is_expired():
             status_obj.status = SessionStatus.STOP
             await self.redis_client.hset(
-                f"{req.agent_name}:{self.active_sessions_key}",
+                f"{req.agent_type}:{self.active_sessions_key}",
                 req.sid,
                 status_obj.to_json(),
             )
@@ -185,11 +193,10 @@ class RedisQueueManager(AbstractQueueManagerServer):
                     batch.append(
                         RAGFeatures(
                             sid=req.sid,
-                            agent_name=req.agent_name,
+                            agent_id=status_obj.agent_id,
+                            agent_type=status_obj.agent_type,
                             text=req.text,
                             owner_id=status_obj.owner_id,
-                            kb_id=status_obj.kb_id,
-                            kb_limit=status_obj.kb_limit,
                             priority=req.priority,
                             created_at=req.created_at,
                         )
@@ -205,9 +212,13 @@ class RedisQueueManager(AbstractQueueManagerServer):
     async def push_result(self, result: TextFeatures):
         """Push inference result back to Redis pub/sub"""
         status_obj = await self.get_status_object(result)
+        if status_obj is None:
+            logger.error(f"Session status not found for {result.sid}")
+            return
+
         status_obj.refresh_time()
         await self.redis_client.hset(
-            f"{result.agent_name}:{self.active_sessions_key}",
+            f"{result.agent_type}:{self.active_sessions_key}",
             result.sid,
             status_obj.to_json(),
         )
@@ -259,7 +270,7 @@ class InferenceService(AbstractInferenceServer):
         async for text_feat in self.inference_engine._process_single(req):
             text_feat = TextFeatures(
                 sid=text_feat.sid,
-                agent_name=text_feat.agent_name,
+                agent_type=text_feat.agent_type,
                 priority=text_feat.priority,
                 text=text_feat.text,
                 created_at=text_feat.created_at,

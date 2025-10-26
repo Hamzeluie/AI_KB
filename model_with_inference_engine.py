@@ -317,9 +317,19 @@ class LLMManager:
 
 
 class ChatSession:
-    def __init__(self, llm_manager: LLMManager, config: LLMConfig):
+    def __init__(
+        self,
+        llm_manager: LLMManager,
+        system_prompt: str,
+        kb_ids: List[str],
+        kb_limit: int,
+        config: LLMConfig,
+    ):
         self.llm_manager = llm_manager
+        self.system_prompt = system_prompt
         self.config = config
+        self.kb_ids = kb_ids
+        self.kb_limit = kb_limit
         self.chat_history: List[Dict[str, str]] = []
         self.system_instructions: str = (
             "You are Nour, a helpful AI assistant. Use the provided context to answer the user's question. you can use your own history as well."

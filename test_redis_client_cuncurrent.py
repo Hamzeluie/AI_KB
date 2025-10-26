@@ -59,7 +59,7 @@ OUTPUT_CHANNELS = ["RAG:high", "RAG:low"]
 ACTIVE_SESSIONS_KEY = "call:active_sessions"
 
 SAMPLE_RATE = int(os.getenv("VAD_SAMPLE_RATE", 16000))
-AGENT_NAME = "CALL"
+AGENT_NAME = "call"
 SERVICE_NAMES = ["VAD", "STT", "RAG", "TTS"]
 CHANNEL_STEPS = {
     "VAD": ["input"],
@@ -78,12 +78,11 @@ async def publish_stt_requests(redis_client, num_requests: int = 5):
     for sid in sids:
         status = AgentSessions(
             sid=sid,
-            owner_id="+12345952496",
-            kb_id=["kb+12345952496_en"],
-            kb_limit=5,
-            agent_name=AGENT_NAME,
+            agent_type=AGENT_NAME,
+            agent_id="AGENT_ID",
             service_names=SERVICE_NAMES,
             channels_steps=CHANNEL_STEPS,
+            owner_id="+12345952496",
             status=SessionStatus.ACTIVE,
             first_channel=INPUT_CHANNEL,
             last_channel=OUTPUT_CHANNEL,
@@ -137,7 +136,7 @@ async def publish_stt_requests(redis_client, num_requests: int = 5):
         # ),
         TextFeatures(
             sid="test_sid_4",
-            agent_name="call",
+            agent_type="call",
             priority="high",
             created_at=time.time(),
             text="I love music.",
