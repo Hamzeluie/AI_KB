@@ -11,7 +11,8 @@ import redis.asyncio as redis
 # Add project root to path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from abstract_models import *
+from agent_architect.datatype_abstraction import Features, TextFeatures
+from agent_architect.session_abstraction import AgentSessions, SessionStatus
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)

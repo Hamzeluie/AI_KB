@@ -5,7 +5,15 @@ import uuid
 from typing import AsyncGenerator, Dict, List, Optional
 
 import redis.asyncio as redis
-from abstract_models import *
+from agent_architect.datatype_abstraction import Features, RAGFeatures, TextFeatures
+from agent_architect.models_abstraction import (
+    AbstractAsyncModelInference,
+    AbstractInferenceServer,
+    AbstractQueueManagerServer,
+    DynamicBatchManager,
+)
+from agent_architect.session_abstraction import AgentSessions, SessionStatus
+from agent_architect.utils import go_next_service
 from fastapi import FastAPI
 from model_with_inference_engine import ChatSession, LLMConfig, LLMManager
 from model_with_inference_engine import config as llm_config
@@ -108,7 +116,6 @@ class RedisQueueManager(AbstractQueueManagerServer):
         self,
         redis_url: str = "redis://localhost:6379",
         service_name: str = "RAG",
-        queue_name: str = "call_agent",
         priorities: List[str] = ["high", "low"],
     ):
         self.redis_url = redis_url
@@ -116,8 +123,7 @@ class RedisQueueManager(AbstractQueueManagerServer):
         self.service_name = service_name
         self.redis_client = None
         self.pubsub = None
-        self.queue_name = queue_name
-        self.active_sessions_key = f"{queue_name}:active_sessions"
+        self.active_sessions_key = f"active_sessions"
         self.input_channels: List = [
             f"{self.service_name}:high",
             f"{self.service_name}:low",
@@ -127,22 +133,26 @@ class RedisQueueManager(AbstractQueueManagerServer):
         """Initialize Redis connection"""
         self.redis_client = await redis.from_url(self.redis_url, decode_responses=False)
 
-    async def get_status_object(self, sid: str) -> AgentSessions:
-        raw = await self.redis_client.hget(self.active_sessions_key, sid)
+    async def get_status_object(self, req: Features) -> AgentSessions:
+        raw = await self.redis_client.hget(
+            f"{req.agent_name}:{self.active_sessions_key}", req.sid
+        )
         if raw is None:
             return None
         return AgentSessions.from_json(raw)
 
     async def is_session_active(self, req: Features) -> bool:
         """Check if a session is active"""
-        status_obj = await self.get_status_object(req.sid)
+        status_obj = await self.get_status_object(req)
         if status_obj is None:
             return False
         # change status of the session to 'stop' if the session expired
         if status_obj.is_expired():
             status_obj.status = SessionStatus.STOP
             await self.redis_client.hset(
-                self.active_sessions_key, req.sid, status_obj.to_json()
+                f"{req.agent_name}:{self.active_sessions_key}",
+                req.sid,
+                status_obj.to_json(),
             )
             return False
         elif status_obj.status == SessionStatus.INTERRUPT:
@@ -171,7 +181,7 @@ class RedisQueueManager(AbstractQueueManagerServer):
                     if not await self.is_session_active(req):
                         logger.info(f"Skipped request for stopped session: {req.sid}")
                         continue
-                    status_obj = await self.get_status_object(req.sid)
+                    status_obj = await self.get_status_object(req)
                     batch.append(
                         RAGFeatures(
                             sid=req.sid,
@@ -194,10 +204,12 @@ class RedisQueueManager(AbstractQueueManagerServer):
 
     async def push_result(self, result: TextFeatures):
         """Push inference result back to Redis pub/sub"""
-        status_obj = await self.get_status_object(result.sid)
+        status_obj = await self.get_status_object(result)
         status_obj.refresh_time()
         await self.redis_client.hset(
-            self.active_sessions_key, result.sid, status_obj.to_json()
+            f"{result.agent_name}:{self.active_sessions_key}",
+            result.sid,
+            status_obj.to_json(),
         )
         # calculate next service and queue name
         next_service = go_next_service(
@@ -218,10 +230,13 @@ class InferenceService(AbstractInferenceServer):
         redis_url: str = "redis://localhost:6379",
         max_batch_size: int = 16,
         max_wait_time: float = 0.1,
-        queue_name: str = "call_agent",
+        service_name: str = "RAG",
     ):
         super().__init__()
-        self.queue_manager = RedisQueueManager(redis_url, queue_name=queue_name)
+        self.service_name = service_name
+        self.queue_manager = RedisQueueManager(
+            redis_url, service_name=self.service_name
+        )
         self.batch_manager = DynamicBatchManager(max_batch_size, max_wait_time)
         self.inference_engine = AsyncRagLlmInference(
             llm_manager=llm_manager, config=llm_config, max_worker=max_worker
