@@ -56,7 +56,9 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                     response = await session.get(DASHBOARD_URL, params=params, headers=HEADER)
 
                 response = response.json()
-                kb_ids = response.get("kb_id", [""])
+                kb_ids = []
+                for kb_id in response.json()['data']['user']['agents'][0]['knowledge_bases']:
+                    kb_ids.append(kb_id['vexu_ai_kb_id'])
                 system_prompt = response.json()['data']['user']['agents'][req.owner_id]['system_prompt']
                 kb_limit = response.get("kb_limit", 5)
                 """
