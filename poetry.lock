@@ -14,7 +14,7 @@ develop = false
 type = "git"
 url = "https://github.com/Hamzeluie/agent_architect.git"
 reference = "main"
-resolved_reference = "b08527f06518b73746a7a88bf4764d4c31457c7b"
+resolved_reference = "81aa25df7e373815e24f89337a49b97e4eaabb69"
 
 [[package]]
 name = "aiohappyeyeballs"

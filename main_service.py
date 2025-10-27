@@ -4,6 +4,7 @@ import time
 import uuid
 from typing import AsyncGenerator, Dict, List, Optional
 
+import aiohttp
 import redis.asyncio as redis
 from agent_architect.datatype_abstraction import Features, RAGFeatures, TextFeatures
 from agent_architect.models_abstraction import (
@@ -22,6 +23,10 @@ from vllm import SamplingParams  # <-- ADD THIS
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+DASHBOARD_URL = "https://api-dev.vexu.ai/api/v1/server/user-profile"
+HEADER = {
+    "Authorization": "Bearer vexu_6W3Qr84dHNJRDHQIYdC3VLLb4eWsdko4MGGNTD99ttV6jvNN1K0PwZcXNGSc8dsO"
+}
 
 
 class AsyncRagLlmInference(AbstractAsyncModelInference):
@@ -45,13 +50,20 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                 # ================================
                 # CALL fro getting system prompt and temprature and ...
                 # ================================
-                kb_ids = ["kb_1"]
-                system_prompt = ""
-                kb_limit = 0
+                """
+                async with aiohttp.ClientSession() as session:
+                    params = {"user_id": str(req.owner_id)}
+                    response = await session.get(DASHBOARD_URL, params=params, headers=HEADER)
+
+                response = response.json()
+                kb_ids = response.get("kb_id", [""])
+                system_prompt = response.json()['data']['user']['agents'][req.owner_id]['system_prompt']
+                kb_limit = response.get("kb_limit", 5)
+                """
                 self.chat_sessions[req.sid] = ChatSession(
                     llm_manager=self.llm_manager,
                     system_prompt="",
-                    kb_ids=["kb_1"],
+                    kb_ids=["kb+12345952496_en"],
                     kb_limit=5,
                     config=self.config,
                 )
@@ -101,11 +113,23 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                     text_feat = TextFeatures(
                         sid=req.sid,
                         agent_type=req.agent_type,
+                        is_final=False,
                         text=delta,
                         priority=req.priority,
                         created_at=time.time(),
                     )
                     print(f"Streaming delta for {req.sid}: {delta}")
+                    yield text_feat
+                else:
+                    text_feat = TextFeatures(
+                        sid=req.sid,
+                        agent_type=req.agent_type,
+                        is_final=True,
+                        text="",
+                        priority=req.priority,
+                        created_at=time.time(),
+                    )
+                    print(f"Streaming FINAL for {req.sid}")
                     yield text_feat
                 prev_text = current_text
 
@@ -195,6 +219,7 @@ class RedisQueueManager(AbstractQueueManagerServer):
                             sid=req.sid,
                             agent_id=status_obj.agent_id,
                             agent_type=status_obj.agent_type,
+                            is_final=req.is_final,
                             text=req.text,
                             owner_id=status_obj.owner_id,
                             priority=req.priority,
@@ -268,26 +293,17 @@ class InferenceService(AbstractInferenceServer):
 
     async def process_and_send(self, req: RAGFeatures):
         async for text_feat in self.inference_engine._process_single(req):
-            text_feat = TextFeatures(
-                sid=text_feat.sid,
-                agent_type=text_feat.agent_type,
-                priority=text_feat.priority,
-                text=text_feat.text,
-                created_at=text_feat.created_at,
-            )
             await asyncio.sleep(0.01)
             await self.queue_manager.push_result(text_feat)
 
     async def _process_batches_loop(self):
         logger.info("Starting batch processing loop")
-        # Main processing loop @Borhan
         while self.is_running:
             try:
                 batch = await self.queue_manager.get_data_batch(
                     max_batch_size=self.batch_manager.max_batch_size,
                     max_wait_time=self.batch_manager.max_wait_time,
                 )
-                print(f"Got batch of size {len(batch)} and batch = {batch}")
                 if batch:
                     start_time = time.time()
                     for req in batch:
