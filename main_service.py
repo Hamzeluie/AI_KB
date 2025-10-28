@@ -69,9 +69,7 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                     kb_limit=5,
                     config=self.config,
                 )
-
             session = self.chat_sessions[req.sid]
-
             # RAG retrieval
             retrieved_docs = await vector_search(
                 owner_id=req.owner_id,
@@ -79,7 +77,6 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                 kb_id=session.kb_ids,
                 limit=session.kb_limit,
             )
-
             context_str = (
                 "\n\n".join(
                     [
@@ -89,12 +86,9 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                 )
                 or "No relevant context found."
             )
-
             augmented_prompt = f"**Retrieved Context:**\n{context_str}\n\n**User Question:**\n{req.text}"
             session.add_message("user", augmented_prompt)
-
             final_prompt = session.get_formatted_prompt()
-
             sampling_params = SamplingParams(
                 temperature=self.config.TEMPERATURE,
                 max_tokens=self.config.MAX_TOKENS,
@@ -238,6 +232,10 @@ class RedisQueueManager(AbstractQueueManagerServer):
 
     async def push_result(self, result: TextFeatures):
         """Push inference result back to Redis pub/sub"""
+        # Check if session was stopped during processing
+        if not await self.is_session_active(result):
+            raise Exception(f"Session {result.sid} was stopped during processing")
+
         status_obj = await self.get_status_object(result)
         if status_obj is None:
             logger.error(f"Session status not found for {result.sid}")
