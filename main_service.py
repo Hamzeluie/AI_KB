@@ -27,15 +27,27 @@ DASHBOARD_URL = "https://api-dev.vexu.ai/api/v1/server/user-profile"
 HEADER = {
     "Authorization": "Bearer vexu_6W3Qr84dHNJRDHQIYdC3VLLb4eWsdko4MGGNTD99ttV6jvNN1K0PwZcXNGSc8dsO"
 }
+import re
+
+PUNCTUATION_MARKS = {".", "!", "?", ";", ":", "\n"}
+MAX_BUFFER_WORDS = 1  # or use char limit like MAX_BUFFER_CHARS = 100
+MAX_BUFFER_CHARS = 50
 
 
 class AsyncRagLlmInference(AbstractAsyncModelInference):
-    def __init__(self, llm_manager: LLMManager, config: LLMConfig, max_worker: int = 4):
+    def __init__(
+        self,
+        llm_manager: LLMManager,
+        config: LLMConfig,
+        queue_manager: AbstractQueueManagerServer = None,
+        max_worker: int = 4,
+    ):
         super().__init__(max_worker=max_worker)
         self.llm_manager = llm_manager
         self.config = config
         self.chat_sessions: Dict[str, ChatSession] = {}
         self.redis_client: Optional[redis.Redis] = None
+        self.queue_manager: Optional[AbstractQueueManagerServer] = queue_manager
 
     async def warmup(self):
         if self.llm_manager.is_initialized():
@@ -94,45 +106,119 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                 max_tokens=self.config.MAX_TOKENS,
                 skip_special_tokens=True,
             )
-            request_id = f"inf-{req.sid}-{uuid.uuid4().hex[:8]}"
-
+            # request_id = f"inf-{req.sid}-{uuid.uuid4().hex[:8]}"
+            request_id = req.sid
             current_text = ""
             prev_text = ""
+            buffer = ""  # accumulates tokens until we decide to yield
+
             async for output in self.llm_manager.llm_engine.generate(
                 prompt=final_prompt,
                 sampling_params=sampling_params,
                 request_id=request_id,
             ):
+
+                if await self.queue_manager.is_session_active(req) == False:
+                    await self.llm_manager.llm_engine.abort(request_id)
+                    logger.info(
+                        f"🟡 Aborted request {request_id} for inactive session {req.sid}"
+                    )
+                    return
+
                 current_text = output.outputs[0].text
                 delta = current_text[len(prev_text) :]
-                if delta:
+                prev_text = current_text
+
+                if not delta:
+                    continue
+
+                buffer += delta
+
+                # Heuristic 1: ends with sentence-like punctuation?
+                stripped = buffer.rstrip()
+                should_flush = stripped and stripped[-1] in PUNCTUATION_MARKS
+
+                # Heuristic 2: buffer too long without punctuation?
+                if not should_flush:
+                    word_count = len(buffer.split())
+                    char_count = len(buffer)
+                    if word_count >= MAX_BUFFER_WORDS or char_count >= MAX_BUFFER_CHARS:
+                        should_flush = True
+
+                if should_flush and buffer:
                     text_feat = TextFeatures(
                         sid=req.sid,
                         agent_type=req.agent_type,
                         is_final=False,
-                        text=delta,
+                        text=buffer,
                         priority=req.priority,
                         created_at=time.time(),
                     )
-                    print(f"Streaming delta for {req.sid}: {delta}")
+                    print(f"Streaming chunk for {req.sid}: {repr(buffer)}")
                     yield text_feat
-                else:
-                    text_feat = TextFeatures(
-                        sid=req.sid,
-                        agent_type=req.agent_type,
-                        is_final=True,
-                        text="",
-                        priority=req.priority,
-                        created_at=time.time(),
-                    )
-                    print(f"Streaming FINAL for {req.sid}")
-                    yield text_feat
-                prev_text = current_text
+                    buffer = ""
+
+            # Flush any remaining text at the end
+            if buffer:
+                yield TextFeatures(
+                    sid=req.sid,
+                    agent_type=req.agent_type,
+                    is_final=False,
+                    text=buffer,
+                    priority=req.priority,
+                    created_at=time.time(),
+                )
+
+            # Final marker
+            yield TextFeatures(
+                sid=req.sid,
+                agent_type=req.agent_type,
+                is_final=True,
+                text="",
+                priority=req.priority,
+                created_at=time.time(),
+            )
 
             session.add_message("assistant", current_text)
-
         except Exception as e:
             logger.error(f"Error processing request {req.sid}: {e}", exc_info=True)
+        #     current_text = ""
+        #     prev_text = ""
+        #     async for output in self.llm_manager.llm_engine.generate(
+        #         prompt=final_prompt,
+        #         sampling_params=sampling_params,
+        #         request_id=request_id,
+        #     ):
+        #         current_text = output.outputs[0].text
+        #         delta = current_text[len(prev_text) :]
+        #         if delta:
+        #             text_feat = TextFeatures(
+        #                 sid=req.sid,
+        #                 agent_type=req.agent_type,
+        #                 is_final=False,
+        #                 text=delta,
+        #                 priority=req.priority,
+        #                 created_at=time.time(),
+        #             )
+        #             print(f"Streaming delta for {req.sid}: {delta}")
+        #             yield text_feat
+        #         else:
+        #             text_feat = TextFeatures(
+        #                 sid=req.sid,
+        #                 agent_type=req.agent_type,
+        #                 is_final=True,
+        #                 text="",
+        #                 priority=req.priority,
+        #                 created_at=time.time(),
+        #             )
+        #             print(f"Streaming FINAL for {req.sid}")
+        #             yield text_feat
+        #         prev_text = current_text
+
+        #     session.add_message("assistant", current_text)
+
+        # except Exception as e:
+        #     logger.error(f"Error processing request {req.sid}: {e}", exc_info=True)
 
 
 class RedisQueueManager(AbstractQueueManagerServer):
@@ -234,7 +320,8 @@ class RedisQueueManager(AbstractQueueManagerServer):
         """Push inference result back to Redis pub/sub"""
         # Check if session was stopped during processing
         if not await self.is_session_active(result):
-            raise Exception(f"Session {result.sid} was stopped during processing")
+            logger.info(f"❌ Not pushing result for inactive session: {result.sid}")
+            return
 
         status_obj = await self.get_status_object(result)
         if status_obj is None:
@@ -275,7 +362,10 @@ class InferenceService(AbstractInferenceServer):
         )
         self.batch_manager = DynamicBatchManager(max_batch_size, max_wait_time)
         self.inference_engine = AsyncRagLlmInference(
-            llm_manager=llm_manager, config=llm_config, max_worker=max_worker
+            llm_manager=llm_manager,
+            config=llm_config,
+            queue_manager=self.queue_manager,
+            max_worker=max_worker,
         )
 
     async def is_session_active(self, req: Features) -> bool:
