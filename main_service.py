@@ -30,8 +30,9 @@ HEADER = {
 import re
 
 PUNCTUATION_MARKS = {".", "!", "?", ";", ":", "\n"}
-MAX_BUFFER_WORDS = 1  # or use char limit like MAX_BUFFER_CHARS = 100
-MAX_BUFFER_CHARS = 50
+MAX_BUFFER_WORDS = 2  # or use char limit like MAX_BUFFER_CHARS = 100
+MAX_BUFFER_CHARS = 5000
+# Add this near the top
 
 
 class AsyncRagLlmInference(AbstractAsyncModelInference):
@@ -105,12 +106,14 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                 temperature=self.config.TEMPERATURE,
                 max_tokens=self.config.MAX_TOKENS,
                 skip_special_tokens=True,
+                stop=["<|im_end|>", "\n<|im_start|>"],
             )
             # request_id = f"inf-{req.sid}-{uuid.uuid4().hex[:8]}"
             request_id = req.sid
             current_text = ""
             prev_text = ""
             buffer = ""  # accumulates tokens until we decide to yield
+            output_word = ""
 
             async for output in self.llm_manager.llm_engine.generate(
                 prompt=final_prompt,
@@ -134,29 +137,69 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
 
                 buffer += delta
 
+                try:
+                    space_index = buffer.index(" ")
+                    output_word += " " + buffer[:space_index]
+                except:
+                    if output.finished:
+                        output_word += " " + buffer[:space_index]
+
+                        text_feat = TextFeatures(
+                            sid=req.sid,
+                            agent_type=req.agent_type,
+                            is_final=True,
+                            text=output_word,
+                            priority=req.priority,
+                            created_at=time.time(),
+                        )
+                        buffer = buffer[space_index + 1 :]
+                        continue
+                    else:
+                        continue
+
                 # Heuristic 1: ends with sentence-like punctuation?
-                stripped = buffer.rstrip()
+                stripped = output_word.rstrip()
                 should_flush = stripped and stripped[-1] in PUNCTUATION_MARKS
 
                 # Heuristic 2: buffer too long without punctuation?
                 if not should_flush:
-                    word_count = len(buffer.split())
-                    char_count = len(buffer)
+                    word_count = len(output_word.split())
+                    char_count = len(output_word)
                     if word_count >= MAX_BUFFER_WORDS or char_count >= MAX_BUFFER_CHARS:
                         should_flush = True
+                    else:
+                        buffer = buffer[space_index + 1 :]
+
+                if output.finished:
+                    output_word += " " + buffer[space_index + 1 :]
+                    text_feat = TextFeatures(
+                        sid=req.sid,
+                        agent_type=req.agent_type,
+                        is_final=True,
+                        text=output_word.strip(),
+                        priority=req.priority,
+                        created_at=time.time(),
+                    )
+                    print(
+                        f"Streaming LAST chunk for {req.sid}: {repr(output_word.strip())}"
+                    )
+                    yield text_feat
+                    buffer = ""
+                    output_word = ""
 
                 if should_flush and buffer:
                     text_feat = TextFeatures(
                         sid=req.sid,
                         agent_type=req.agent_type,
                         is_final=False,
-                        text=buffer,
+                        text=output_word.strip(),
                         priority=req.priority,
                         created_at=time.time(),
                     )
-                    print(f"Streaming chunk for {req.sid}: {repr(buffer)}")
+                    print(f"Streaming chunk for {req.sid}: {output_word}")
                     yield text_feat
-                    buffer = ""
+                    buffer = buffer[space_index + 1 :]
+                    output_word = ""
 
             # Flush any remaining text at the end
             if buffer:
@@ -164,61 +207,15 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                     sid=req.sid,
                     agent_type=req.agent_type,
                     is_final=False,
-                    text=buffer,
+                    text=output_word.strip(),
                     priority=req.priority,
                     created_at=time.time(),
                 )
-
-            # Final marker
-            yield TextFeatures(
-                sid=req.sid,
-                agent_type=req.agent_type,
-                is_final=True,
-                text="",
-                priority=req.priority,
-                created_at=time.time(),
-            )
-
+                print(f"Streaming remainded for {req.sid}: {repr(output_word.strip())}")
             session.add_message("assistant", current_text)
+            output_word = ""
         except Exception as e:
             logger.error(f"Error processing request {req.sid}: {e}", exc_info=True)
-        #     current_text = ""
-        #     prev_text = ""
-        #     async for output in self.llm_manager.llm_engine.generate(
-        #         prompt=final_prompt,
-        #         sampling_params=sampling_params,
-        #         request_id=request_id,
-        #     ):
-        #         current_text = output.outputs[0].text
-        #         delta = current_text[len(prev_text) :]
-        #         if delta:
-        #             text_feat = TextFeatures(
-        #                 sid=req.sid,
-        #                 agent_type=req.agent_type,
-        #                 is_final=False,
-        #                 text=delta,
-        #                 priority=req.priority,
-        #                 created_at=time.time(),
-        #             )
-        #             print(f"Streaming delta for {req.sid}: {delta}")
-        #             yield text_feat
-        #         else:
-        #             text_feat = TextFeatures(
-        #                 sid=req.sid,
-        #                 agent_type=req.agent_type,
-        #                 is_final=True,
-        #                 text="",
-        #                 priority=req.priority,
-        #                 created_at=time.time(),
-        #             )
-        #             print(f"Streaming FINAL for {req.sid}")
-        #             yield text_feat
-        #         prev_text = current_text
-
-        #     session.add_message("assistant", current_text)
-
-        # except Exception as e:
-        #     logger.error(f"Error processing request {req.sid}: {e}", exc_info=True)
 
 
 class RedisQueueManager(AbstractQueueManagerServer):
@@ -343,7 +340,7 @@ class RedisQueueManager(AbstractQueueManagerServer):
             prioriry=result.priority,
         )
         await self.redis_client.lpush(next_service, result.to_json())
-        logger.info(f"Result pushed for request {result.sid}, to {next_service}")
+        # logger.info(f"Result pushed for request {result.sid}, to {next_service}")
 
 
 class InferenceService(AbstractInferenceServer):
