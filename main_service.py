@@ -1,5 +1,6 @@
 import asyncio
 import logging
+import random
 import time
 import uuid
 from typing import AsyncGenerator, Dict, List, Optional
@@ -30,7 +31,10 @@ HEADER = {
 import re
 
 PUNCTUATION_MARKS = {".", "!", "?", ";", ":", "\n"}
-MAX_BUFFER_WORDS = 3  # or use char limit like MAX_BUFFER_CHARS = 100
+MAX_BUFFER_WORDS = 5  # or use char limit like MAX_BUFFER_CHARS = 100
+MAX_BUFFER_WORDS = lambda start, end: random.randint(
+    start, end
+)  # or use char limit like MAX_BUFFER_CHARS = 100
 MAX_BUFFER_CHARS = 5000
 # Add this near the top
 
@@ -165,7 +169,11 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                 if not should_flush:
                     word_count = len(output_word.split())
                     char_count = len(output_word)
-                    if word_count >= MAX_BUFFER_WORDS or char_count >= MAX_BUFFER_CHARS:
+                    if (
+                        # word_count >= MAX_BUFFER_WORDS(3, 5)
+                        word_count >= MAX_BUFFER_WORDS
+                        or char_count >= MAX_BUFFER_CHARS
+                    ):
                         should_flush = True
                     else:
                         buffer = buffer[space_index + 1 :]
@@ -176,13 +184,11 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                         sid=req.sid,
                         agent_type=req.agent_type,
                         is_final=True,
-                        text=output_word.strip(),
+                        text=output_word,
                         priority=req.priority,
                         created_at=time.time(),
                     )
-                    print(
-                        f"Streaming LAST chunk for {req.sid}: {repr(output_word.strip())}"
-                    )
+                    print(f"Streaming LAST chunk for {req.sid}: {repr(output_word)}")
                     yield text_feat
                     buffer = ""
                     output_word = ""
@@ -192,7 +198,7 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                         sid=req.sid,
                         agent_type=req.agent_type,
                         is_final=False,
-                        text=output_word.strip(),
+                        text=output_word,
                         priority=req.priority,
                         created_at=time.time(),
                     )
@@ -207,11 +213,11 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                     sid=req.sid,
                     agent_type=req.agent_type,
                     is_final=False,
-                    text=output_word.strip(),
+                    text=output_word,
                     priority=req.priority,
                     created_at=time.time(),
                 )
-                print(f"Streaming remainded for {req.sid}: {repr(output_word.strip())}")
+                print(f"Streaming remainded for {req.sid}: {repr(output_word)}")
             session.add_message("assistant", current_text)
             output_word = ""
         except Exception as e:
