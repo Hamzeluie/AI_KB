@@ -31,10 +31,10 @@ HEADER = {
 import re
 
 PUNCTUATION_MARKS = {".", "!", "?", ";", ":", "\n"}
+# MAX_BUFFER_WORDS = lambda start, end: random.randint(start, end)  # or use char limit like MAX_BUFFER_CHARS = 100
+
 MAX_BUFFER_WORDS = 5  # or use char limit like MAX_BUFFER_CHARS = 100
-MAX_BUFFER_WORDS = lambda start, end: random.randint(
-    start, end
-)  # or use char limit like MAX_BUFFER_CHARS = 100
+
 MAX_BUFFER_CHARS = 5000
 # Add this near the top
 
