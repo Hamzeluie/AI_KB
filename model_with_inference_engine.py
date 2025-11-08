@@ -260,7 +260,7 @@ class LLMManager:
                 model=self.config.LOCAL_MODEL_DIR,
                 dtype=self.config.DTYPE,
                 quantization=self.config.QUANTIZATION,
-                gpu_memory_utilization=0.45,
+                gpu_memory_utilization=0.6,
                 # Increase max_num_seqs to handle more concurrent requests
                 max_num_seqs=256,
             )
@@ -320,20 +320,18 @@ class ChatSession:
     def __init__(
         self,
         llm_manager: LLMManager,
-        system_prompt: str,
         kb_ids: List[str],
         kb_limit: int,
         config: LLMConfig,
+        system_instructions: str = "You are Nour, a helpful AI assistant. Use the provided context to answer the user's question. you can use your own history as well.",
     ):
         self.llm_manager = llm_manager
-        self.system_prompt = system_prompt
         self.config = config
         self.kb_ids = kb_ids
         self.kb_limit = kb_limit
         self.chat_history: List[Dict[str, str]] = []
-        self.system_instructions: str = (
-            "You are Nour, a helpful AI assistant. Use the provided context to answer the user's question. you can use your own history as well."
-        )
+        self.system_instructions = system_instructions
+
         self.temperature: float = config.TEMPERATURE
         self.max_tokens: int = config.MAX_TOKENS
 
@@ -460,8 +458,6 @@ async def process_single_request(item: BatchRequestItem) -> BatchResponseItem:
         if item.session_id not in chat_sessions:
             logging.info(f"Creating new session: {item.session_id}")
             chat_sessions[item.session_id] = ChatSession(llm_manager, config)
-            # You could configure the session here, e.g., from a DB
-            # session.system_instructions = ...
 
         session = chat_sessions[item.session_id]
 

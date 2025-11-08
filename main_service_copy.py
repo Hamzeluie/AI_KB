@@ -161,27 +161,81 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                 buffer += delta
 
                 # Accumulate until we have a complete word (i.e., a space appears)
+                # if " " in buffer:
+                #     # Extract all complete words (up to last space)
+                #     parts = buffer.rsplit(" ", 1)
+                #     complete_part = parts[0]
+                #     remaining = parts[1]
+
+                #     # Add complete part to output_word
+                #     if output_word:
+                #         output_word += " " + complete_part
+                #     else:
+                #         output_word = complete_part
+
+                #     buffer = remaining
+                # else:
+                #     # No space yet — wait unless it's the final output
+                #     if not output.finished:
+                #         continue
+                #     # If finished, treat the whole buffer as final word
+                #     if buffer:
+                #         if output_word:
+                #             output_word += " " + buffer
+                #         else:
+                #             output_word = buffer
+                #         buffer = ""
+                # # Decide whether to flush
+                # should_flush = False
+                # if output_word:
+                #     stripped = output_word.rstrip()
+                #     if stripped and stripped[-1] in PUNCTUATION_MARKS:
+                #         should_flush = True
+                #     else:
+                #         word_count = len(output_word.split())
+                #         char_count = len(output_word)
+                #         if (
+                #             word_count >= MAX_BUFFER_WORDS
+                #             or char_count >= MAX_BUFFER_CHARS
+                #         ):
+                #             should_flush = True
+
+                # # Handle final output
+                # if output.finished:
+                #     if output_word:
+                #         yield TextFeatures(
+                #             sid=req.sid,
+                #             agent_type=req.agent_type,
+                #             is_final=True,
+                #             text=output_word,
+                #             priority=req.priority,
+                #             created_at=time.time(),
+                #         )
+                #         print(
+                #             f"Streaming LAST chunk for {req.sid}: {repr(output_word)}"
+                #         )
+                #     session.add_message("assistant", current_text)
+                #     return
+
+                # # Yield intermediate chunk
+                # if should_flush and output_word:
+                #     yield TextFeatures(
+                #         sid=req.sid,
+                #         agent_type=req.agent_type,
+                #         is_final=False,
+                #         text=output_word,
+                #         priority=req.priority,
+                #         created_at=time.time(),
+                #     )
+                #     print(f"Streaming chunk for {req.sid}: {output_word}")
+                #     output_word = ""
                 try:
                     space_index = buffer.index(" ")
                     output_word += " " + buffer[:space_index]
-                    buffer = buffer[space_index + 1 :]
-                    if output.finished:
-                        output_word += " " + buffer
-                        text_feat = TextFeatures(
-                            sid=req.sid,
-                            agent_type=req.agent_type,
-                            is_final=True,
-                            text=output_word,
-                            priority=req.priority,
-                            created_at=time.time(),
-                        )
-                        buffer = ""
-                        output_word = ""
-                        yield text_feat
-                        break
                 except:
+                    space_index = -1
                     if output.finished:
-                        output_word += " " + buffer
+                        output_word += " " + buffer[:space_index]
 
                         text_feat = TextFeatures(
                             sid=req.sid,
@@ -193,7 +247,6 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                         )
                         yield text_feat
                         buffer = ""
-                        break
                     else:
                         continue
 
@@ -207,6 +260,33 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                     char_count = len(output_word)
                     if word_count >= MAX_BUFFER_WORDS or char_count >= MAX_BUFFER_CHARS:
                         should_flush = True
+                    else:
+                        print(
+                            f"🎃 it is in the else of not should flush: before buffer: {repr(buffer)} after buffer: {repr(buffer[space_index + 1 :])}"
+                        )
+                        buffer = buffer[space_index + 1 :]
+
+                if output.finished:
+                    # space_index = -1
+                    # output_word += " " + buffer[:space_index]
+                    print(
+                        f"✅ it is in the finished part: before buffer: {repr(buffer)} and the space_index is: {space_index} and output_word is: {repr(output_word)}"
+                    )
+                    output_word += " " + buffer[space_index + 1 :]  # original
+                    # output_word = buffer  # Borhan, if does not work change to original
+                    print(f"✅ The buffer at finish is: {repr(buffer)}")
+                    text_feat = TextFeatures(
+                        sid=req.sid,
+                        agent_type=req.agent_type,
+                        is_final=True,
+                        text=output_word,
+                        priority=req.priority,
+                        created_at=time.time(),
+                    )
+                    print(f"Streaming LAST chunk for {req.sid}: {repr(output_word)}")
+                    yield text_feat
+                    buffer = ""
+                    output_word = ""
 
                 if should_flush and buffer:
                     text_feat = TextFeatures(
@@ -218,8 +298,21 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                         created_at=time.time(),
                     )
                     print(f"Streaming chunk for {req.sid}: {output_word}")
-                    output_word = ""
                     yield text_feat
+                    buffer = buffer[space_index + 1 :]
+                    output_word = ""
+
+            # Flush any remaining text at the end
+            if buffer:
+                print(f"Streaming remainded for {req.sid}: {repr(output_word)}")
+                yield TextFeatures(
+                    sid=req.sid,
+                    agent_type=req.agent_type,
+                    is_final=True,
+                    text=output_word,
+                    priority=req.priority,
+                    created_at=time.time(),
+                )
             session.add_message("assistant", current_text)
             output_word = ""
         except Exception as e:
