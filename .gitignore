@@ -6,4 +6,7 @@ __pycache__/
 actions-runner/
 test.sh
 _work*
+local_models/
 db/qdrant_schedule_price_multilingual_opt/
+db2/
+db/
