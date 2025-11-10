@@ -48,21 +48,35 @@ with:
 
 
         docker build --no-cache -t kb-server .
-        docker run -it --gpus all -p 8000:8000 -e API_KEY=<api token> kb-server 
+        docker run -d --name kb-server-container --gpus all -v /home/ubuntu/borhan/whole_pipeline/vexu/AI_KB/db:/app/db -p 5003:8000 -e API_KEY="test" kb-server 
 
 
 # Input/Output structure
-input and output of the service in dictionary structure.
+there are four async function.
 
-## input structure:
+## **create_document**: 
+post http request. endpoint structure "db/<owner_id>". create new knwledge base.
 
+### input structure:
 
+        
         {
-        "kb_id": <knowledge base ID>,
-        "owner_id": <owner ID>,
-        "document": {<dictionary or text>}
+                "kb_id": "string",
+                "owner_id": "string",
+                "document": 
+                        {
+                        "key1": {
+                                "field1": "value1",
+                                "field2": "value2"
+                                },
+                        "key2": {
+                                "field1": "value1",
+                                "field2": "value2"
+                                }
+                        }
         }
 
+### output structure
 
 ## output structure:
 Retrieved data in string format

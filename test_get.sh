@@ -2,13 +2,14 @@
 
 # Configuration
 OWNER_ID="123"
-API_KEY="test_api_key"
+API_KEY="test"
 QUERY="السعر بلوتوث"
 KB_ID="test_kb"
 LIMIT=3
 
-DASHBOARD_HOST="localhost"
-DASHBOARD_PORT="8000"
+DASHBOARD_HOST="${DASHBOARD_HOST:-0.0.0.0}" 
+DASHBOARD_PORT="${DASHBOARD_PORT:-5003}"   
+
 
 URL="http://$DASHBOARD_HOST:$DASHBOARD_PORT/db/search/$OWNER_ID"
 

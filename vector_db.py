@@ -1,4 +1,5 @@
 import json
+import os
 import uuid
 from time import time
 from typing import Dict, List, Optional
@@ -29,6 +30,8 @@ class MultiTenantVectorDB:
         collection_name: str = "multitenant_rag_collection",
     ):
         self.config = self._load_config(config_path)
+        print(self.config["vectorstore"]["persist_dir"])
+        print(os.path.isdir(self.config["vectorstore"]["persist_dir"]))
         self.client = QdrantClient(path=self.config["vectorstore"]["persist_dir"])
         self.embedding_model = EmbeddingModel(
             model_name=self.config["embedding"]["model"], device="cuda"

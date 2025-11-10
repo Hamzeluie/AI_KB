@@ -5,11 +5,12 @@
 # =========================
 OWNER_ID="123"
 KB_ID="test_kb"
-API_KEY="test_api_key"                # Must match config.yaml: API_KEY
+API_KEY="test"                # Must match config.yaml: API_KEY
 
 # Orchestrator (Dashboard) Details
-DASHBOARD_HOST="0.0.0.0"
-DASHBOARD_PORT="8000"
+DASHBOARD_HOST="${DASHBOARD_HOST:-0.0.0.0}" 
+DASHBOARD_PORT="${DASHBOARD_PORT:-5003}"   
+
 
 URL="http://$DASHBOARD_HOST:$DASHBOARD_PORT/db/$OWNER_ID"
 

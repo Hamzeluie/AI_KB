@@ -1,2 +1,3 @@
 .venv
 .env
+db/qdrant_schedule_price_multilingual_opt/

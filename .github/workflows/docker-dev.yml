@@ -21,31 +21,39 @@ jobs:
           # Set fallback defaults
           HOST_DEFAULT="0.0.0.0"
           PORT_DEFAULT="8000"
+          TEST_PORT_DEFAULT="5003"
+          API_KEY_DEFAULT="TEST"
 
           export HOST="$HOST_DEFAULT"
           export PORT="$PORT_DEFAULT"
+          export TEST_PORT="$TEST_PORT_DEFAULT"
+          export API_KEY="$API_KEY_DEFAULT"
 
           # Check if .env exists at that path
           if [ -f "$ENV_FILE" ]; then
             echo "✅ .env found at $ENV_FILE — loading variables..."
+            sed -i 's/\r$//' "$ENV_FILE"
+            sed -i 's/[^[:print:]]//g' "$ENV_FILE"
             set -a
             source "$ENV_FILE"
             set +a
           else
-            echo "⚠️ .env not found at $ENV_FILE — using defaults: HOST=$HOST_DEFAULT, PORT=$PORT_DEFAULT"
+            echo "⚠️ .env not found at $ENV_FILE — using defaults: HOST=$HOST_DEFAULT, PORT=$PORT_DEFAULT, API_KEY=$API_KEY_DEFAULT ,  TEST_PORT=$TEST_PORT_DEFAULT"
           fi
 
           # Validate
-          if [ -z "$HOST" ] || [ -z "$PORT" ]; then
-            echo "❌ Error: HOST or PORT is not set (even after fallback)"
+          if [ -z "$HOST" ] || [ -z "$PORT" ] || [ -z "$TEST_PORT" ]; then
+            echo "❌ Error: HOST, PORT or TEST_PORT is not set (even after fallback)"
             exit 1
           fi
 
-          echo "📌 Final config: HOST=$HOST, PORT=$PORT"
+          echo "📌 Final config: HOST=$HOST, PORT=$PORT, TEST_PORT=$TEST_PORT"
 
           # Save to GITHUB_ENV
           echo "HOST=$HOST" >> $GITHUB_ENV
           echo "PORT=$PORT" >> $GITHUB_ENV
+          echo "TEST_PORT=$TEST_PORT" >> $GITHUB_ENV
+          echo "API_KEY=$API_KEY" >> $GITHUB_ENV
 
       - name: 🔍 Checkout repository
         uses: actions/checkout@v4
@@ -65,44 +73,43 @@ jobs:
             docker rm kb-server-container || true
           fi
 
-      - name: 🧹 Kill existing container using port ${{ env.PORT }}
+   
+      - name: 🧹 Remove existing container by name (if exists)
         run: |
-          PORT=${{ env.PORT }}
-          CONTAINER_ID=$(docker ps --format "table {{.ID}}\t{{.Ports}}" | grep "::$PORT->" | awk '{print $1}')
-          if [ -n "$CONTAINER_ID" ]; then
-            echo "⚠️ Found container using port $PORT: $CONTAINER_ID"
-            docker stop $CONTAINER_ID 2>/dev/null || true
-            docker rm $CONTAINER_ID 2>/dev/null || true
-            echo "✅ Killed and removed container: $CONTAINER_ID"
+          CONTAINER_NAME="kb-server-container"
+          if [ $(docker ps -a -q -f name=^/${CONTAINER_NAME}$) ]; then
+            echo "⚠️ Container '$CONTAINER_NAME' exists. Stopping and removing..."
+            docker stop $CONTAINER_NAME 2>/dev/null || true
+            docker rm $CONTAINER_NAME 2>/dev/null || true
+            echo "✅ Container '$CONTAINER_NAME' removed."
           else
-            echo "✅ No container found using port $PORT"
+            echo "✅ No existing container named '$CONTAINER_NAME' found."
           fi
-          
-      
 
       - name: 💣 Kill host process using port ${{ env.PORT }} (if any)
         run: |
           PORT=${{ env.PORT }}
-          PID=$(lsof -i :$PORT -t) || true
+          PID=$(sudo lsof -i :$PORT -t) || true
           if [ -n "$PID" ]; then
             echo "🧨 Port $PORT is held by process PID: $PID"
-            kill -9 $PID 2>/dev/null || echo "⚠️ Failed to kill PID $PID"
+            sudo kill -9 $PID 2>/dev/null || echo "⚠️ Failed to kill PID $PID"
             sleep 2
           else
             echo "✅ No host process found on port $PORT"
           fi
 
-
-      
       
       - name: Run Docker container
         run: |
           echo "Starting container with HOST=${{ env.HOST }} PORT=${{ env.PORT }}"
+          db_path="/home/ubuntu/borhan/whole_pipeline/vexu/AI_KB/db"
           docker run -d \
             --gpus all \
             --name kb-server-container \
             --restart unless-stopped \
-            -p "${{ env.PORT }}":8000 \
+            -p "${{ env.TEST_PORT }}":8000 \
+            -e API_KEY="${{ env.API_KEY }}" \
+            -v ${db_path}:/app/db \
             kb-server:latest
       
       
@@ -140,29 +147,17 @@ jobs:
       - name: 📦 Install dependencies
         run: |
           pip install websockets librosa soundfile numpy
+          echo "📌 Final config: HOST=$HOST, PORT=$PORT, TEST_PORT=$TEST_PORT"
 
-      - name: 🧪 Run kb WebSocket Test create
+      - name: 🧪 Run kb WebSocket Test create "$TEST_PORT"
         run: |
-          source test_create.sh
-      
-      - name: 🧪 Run kb WebSocket Test get
+          DASHBOARD_PORT="$TEST_PORT" source test_create.sh
+
+      - name: 🧪 Run kb WebSocket Test get "$TEST_PORT"
         run: |
-          source test_get.sh
+          DASHBOARD_PORT="$TEST_PORT" source test_get.sh
+
+      - name: 🧪 Run kb WebSocket Test delete "$TEST_PORT"
+        run: |
+          DASHBOARD_PORT="$TEST_PORT" source test_delete.sh
   
-      - name: 🧪 Run kb WebSocket Test delete
-        run: |
-          source test_delete.sh
-  
-  
-  pushing_to_mehdi_origin:
-    runs-on: self-hosted
-    steps:
-      - name: 🔄 Push to Mehdi's Repository
-        run: |
-          # Only push if remote "mehdi" exists
-          if git remote | grep -q '^mehdi$'; then
-            echo "✅ Remote 'mehdi' found — pushing..."
-            git push mehdi develop
-          else
-            echo "⚠️ Remote 'mehdi' not found — skipping push."
-          fi
