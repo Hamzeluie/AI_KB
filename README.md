@@ -48,7 +48,7 @@ with:
 
 
         docker build --no-cache -t kb-server .
-        docker run -d --name kb-server-container --gpus all -v <path to qdrant_schedule_price_multilingual_opt>:/app/db -p 5003:8000 -e API_KEY="test" kb-server 
+        docker run -d --name kb-server-container --gpus all -v /home/ubuntu/borhan/whole_pipeline/vexu/AI_KB/db:/app/db -p 5003:8000 -e API_KEY="test" kb-server 
 
 
 # Input/Output structure
@@ -78,71 +78,5 @@ post http request. endpoint structure "db/<owner_id>". create new knwledge base.
 
 ### output structure
 
-
-        {
-        "status": "success",
-        "document": "Document created successfully",
-        "kb_id": "string",
-        "owner_id": "string"
-        }
-
-## **get_document**: 
-get http request. endpoint structure "db/<owner_id>". apply a query with the **owner_id** to get the knowledge base.
-### input structure
-
-        {
-        "query_text": "string",
-        "kb_id": ["string"],
-        "limit": integer
-        }
-### output structure
-
-
-        {
-                "status": "success",
-                "owner_id": string,
-                "documents": string,
-                "count": integer,
-        }
-
-
-## **delete_document**: 
-delete http request. endpoint structure "/db/<owner_id>/<kb_id>". delete a knowledge base.
-### input structure
-
-        "http://<HOST>:<PORT>/db/<OWNER_ID>/<KB_ID>"
-### output structure
-
-        {
-                "status": "success", 
-                "owner_id": string, 
-                "message": "Document deleted"
-        }
-
-## **websocket_search**: 
-websocket realtime search. endpoint structure "/ws/search/<owner_id>". 
-### input structure
-
-        {
-                "query_text": string,
-                "kb_id": string,
-                "limit": integer,
-        }
-        
-### output structure
-
-        {
-                "status": "success",
-                "owner_id": string,
-                "kb_id": string,
-                "query": string,
-                "results": 
-                        {
-                                "score": string,
-                                "content": string,
-                                "metadata": string,
-                        }
-                ,
-                "count": integer,
-        }
-
+## output structure:
+Retrieved data in string format
