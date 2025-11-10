@@ -154,7 +154,7 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                 delta = current_text[len(prev_text) :]
                 prev_text = current_text
                 delta = clean_text_simple(delta)
-                print("DELTA:", repr(delta))
+                # print("DELTA:", repr(delta))
 
                 if not delta:
                     continue
@@ -217,7 +217,6 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                         priority=req.priority,
                         created_at=time.time(),
                     )
-                    print(f"Streaming chunk for {req.sid}: {output_word}")
                     output_word = ""
                     yield text_feat
             session.add_message("assistant", current_text)
@@ -313,7 +312,6 @@ class RedisQueueManager(AbstractQueueManagerServer):
                             created_at=req.created_at,
                         )
                     )
-                    print("*>", batch[-1])
 
                 except Exception as e:
                     logger.error(f"Error in get_data_batch: {e}", exc_info=True)

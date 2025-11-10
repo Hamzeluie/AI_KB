@@ -5,7 +5,7 @@ import os
 import sys
 import time
 from typing import Any, Dict
-
+from uuid import uuid4
 import redis.asyncio as redis
 
 # Add project root to path
@@ -17,62 +17,26 @@ from agent_architect.session_abstraction import AgentSessions, SessionStatus
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-
-# --- Define SttFeatures inline (as used by your RAG service) ---
-class SttFeatures(Features):
-    def __init__(
-        self, sid: str, payload: Dict[str, Any], priority: str, created_at: float
-    ):
-        self.sid = sid
-        self.payload = payload
-        self.priority = priority
-        self.created_at = created_at
-
-    def to_json(self) -> str:
-        import json
-
-        return json.dumps(
-            {
-                "sid": self.sid,
-                "payload": self.payload,
-                "priority": self.priority,
-                "created_at": self.created_at,
-            }
-        )
-
-    @classmethod
-    def from_json(cls, data: str):
-        import json
-
-        obj = json.loads(data)
-        return cls(
-            sid=obj["sid"],
-            payload=obj["payload"],
-            priority=obj["priority"],
-            created_at=obj["created_at"],
-        )
-
-
+sids = []
 # Redis configuration (must match your RAG service)
-INPUT_CHANNELS = ["STT:high", "STT:low"]
-OUTPUT_CHANNELS = ["RAG:high", "RAG:low"]
-ACTIVE_SESSIONS_KEY = "call:active_sessions"
+INPUT_CHANNELS = ["RAG:high", "RAG:low"]
+AGENT_NAME = "chat"
 
-SAMPLE_RATE = int(os.getenv("VAD_SAMPLE_RATE", 16000))
-AGENT_NAME = "call"
-SERVICE_NAMES = ["VAD", "STT", "RAG", "TTS"]
+OUTPUT_CHANNEL = f"{AGENT_NAME.lower()}:output"
+OUTPUT_CHANNELS = [OUTPUT_CHANNEL]
+ACTIVE_SESSIONS_KEY = "chat:active_sessions"
+
+SERVICE_NAMES = ["RAG"]
 CHANNEL_STEPS = {
-    "VAD": ["input"],
-    "STT": ["high", "low"],
     "RAG": ["high", "low"],
-    "TTS": ["high", "low"],
 }
 INPUT_CHANNEL = f"{SERVICE_NAMES[0]}:{CHANNEL_STEPS[SERVICE_NAMES[0]][0]}"
-OUTPUT_CHANNEL = f"{AGENT_NAME.lower()}:output"
 
 
-async def publish_stt_requests(redis_client, num_requests: int = 5):
-    sids = [f"test_sid_{i}" for i in range(num_requests)]
+
+async def publish_rag_requests(redis_client, num_requests: int = 2):
+    global sids
+    sids = [f"{'Fadi'}:{'002'}:{i}:{str(uuid4().hex)}" for i in range(num_requests)]
 
     # Mark sessions as active
     for sid in sids:
@@ -92,18 +56,22 @@ async def publish_stt_requests(redis_client, num_requests: int = 5):
         await redis_client.hset(ACTIVE_SESSIONS_KEY, sid, status.to_json())
 
     txt_objects = [
-        # TextFeatures(
-        #     sid="test_sid_8",
-        #     priority="high",
-        #     created_at=time.time(),
-        #     text="The book is very old.",
-        # ),
-        # TextFeatures(
-        #     sid="test_sid_6",
-        #     priority="high",
-        #     created_at=time.time(),
-        #     text="Hello, I am Jack.",
-        # ),
+        TextFeatures(
+            sid=sids[0],
+            priority="high",
+            created_at=time.time(),
+            text="Hello. My name is Borhan. Who are you?",
+            agent_type='chat',
+            is_final=False,
+        ),
+        TextFeatures(
+            sid=sids[1],
+            priority="high",
+            created_at=time.time(),
+            text="Hi my name is Jack, what's your name?",
+            agent_type='chat',
+            is_final=False,
+        ),
         # TextFeatures(
         #     sid="test_sid_4",
         #     priority="high",
@@ -134,13 +102,13 @@ async def publish_stt_requests(redis_client, num_requests: int = 5):
         #     created_at=time.time(),
         #     text="Hello, I am Jack.",
         # ),
-        TextFeatures(
-            sid="test_sid_4",
-            agent_type="call",
-            priority="high",
-            created_at=time.time(),
-            text="I love music.",
-        ),
+        # TextFeatures(
+        #     sid="test_sid_4",
+        #     agent_type="call",
+        #     priority="high",
+        #     created_at=time.time(),
+        #     text="I love music.",
+        # ),
         # TextFeatures(
         #     sid="test_sid_2",
         #     priority="high",
@@ -154,45 +122,77 @@ async def publish_stt_requests(redis_client, num_requests: int = 5):
         #     text="They walked to this door.",
         # ),
     ]
+    
     tasks = []
     for i in txt_objects:
         channel = f"RAG:{i.priority}"
 
         logger.info(
-            f"Publishing STT request (sid={i.sid}, priority={i.priority}) to {channel}"
+            f"Publishing RAG request (sid={i.sid}, priority={i.priority}) to {channel}"
         )
         tasks.append(redis_client.lpush(channel, i.to_json()))
 
     await asyncio.gather(*tasks)
-    logger.info(f"Published {len(txt_objects)} STT requests.")
+    logger.info(f"Published {len(txt_objects)} RAG requests.")
 
 
+# async def listen_for_rag_results(redis_client, expected_count: int, timeout: int = 60):
+
+#     # raw = await redis_client.hget(ACTIVE_SESSIONS_KEY, sid)
+#     # if raw is None:
+#     #     return None
+#     # status_obj = AgentSessions.from_json(raw)
+#     result = await redis_client.brpop(OUTPUT_CHANNEL, timeout=0)
+    
+#     # pubsub = redis_client.pubsub()
+#     # await pubsub.subscribe(*OUTPUT_CHANNELS)
+
+#     results = []
+#     start_time = asyncio.get_event_loop().time()
+
+#     logger.info("Listening for RAG results...")
+#     async for message in pubsub.listen():
+#         # if message["type"] != "message":
+#         #     continue
+#         print(f"Received message: {message}")
+#         channel = message["channel"].decode()
+#         logger.info(f"✅ Received RAG result on {channel}")
+#         results.append(message["data"])
+
+#         if len(results) >= expected_count:
+#             break
+
+#         if asyncio.get_event_loop().time() - start_time > timeout:
+#             logger.warning("Timeout reached while waiting for RAG results.")
+#             break
+
+#     await pubsub.unsubscribe(*OUTPUT_CHANNELS)
+#     return results
 async def listen_for_rag_results(redis_client, expected_count: int, timeout: int = 60):
-    pubsub = redis_client.pubsub()
-    await pubsub.subscribe(*OUTPUT_CHANNELS)
-
     results = []
     start_time = asyncio.get_event_loop().time()
 
     logger.info("Listening for RAG results...")
-    async for message in pubsub.listen():
-        if message["type"] != "message":
-            continue
-
-        channel = message["channel"].decode()
-        logger.info(f"✅ Received RAG result on {channel}")
-        results.append(message["data"])
-
-        if len(results) >= expected_count:
-            break
-
-        if asyncio.get_event_loop().time() - start_time > timeout:
+    
+    while len(results) < expected_count:
+        current_time = asyncio.get_event_loop().time()
+        remaining_time = int(timeout - (current_time - start_time))
+        
+        if remaining_time <= 0:
             logger.warning("Timeout reached while waiting for RAG results.")
             break
+            
+        result = await redis_client.brpop(OUTPUT_CHANNEL, timeout=remaining_time)
+        print(f"Received result: {result}")
+        if result is None:
+            logger.warning("Timeout reached while waiting for RAG results.")
+            break
+            
+        _, data = result
+        logger.info(f"✅ Received RAG result on {OUTPUT_CHANNEL}")
+        results.append(data)
 
-    await pubsub.unsubscribe(*OUTPUT_CHANNELS)
     return results
-
 
 async def main():
     NUM_REQUESTS = 5
@@ -207,8 +207,8 @@ async def main():
         listen_for_rag_results(redis_client, NUM_REQUESTS, TIMEOUT)
     )
 
-    # Publish simulated STT outputs
-    await publish_stt_requests(redis_client, num_requests=NUM_REQUESTS)
+    # Publish simulated RAG outputs
+    await publish_rag_requests(redis_client, num_requests=NUM_REQUESTS)
 
     # Wait for results
     try:
@@ -219,12 +219,13 @@ async def main():
         results = listener_task.result() if listener_task.done() else []
 
     # Cleanup: mark sessions as stopped
-    sids = [f"test_sid_{i}" for i in range(NUM_REQUESTS)]
-    for sid in sids:
-        stop_status = SessionStatus(
-            sid=sid, status="stop", created_at=None, timeout=0.0
-        )
-        await redis_client.hset(ACTIVE_SESSIONS_KEY, sid, stop_status.to_json())
+    # sids = [f"test_sid_{i}" for i in range(NUM_REQUESTS)]
+    # for sid in sids:
+    #     print(f"Marking session {sid} as stopped.")
+    #     stop_status = SessionStatus(
+    #         sid=sid, status="stop", created_at=None, timeout=0.0
+    #     )
+    #     await redis_client.hset(ACTIVE_SESSIONS_KEY, sid, stop_status.to_json())
 
     await redis_client.close()
 

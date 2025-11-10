@@ -262,7 +262,7 @@ class LLMManager:
                 quantization=self.config.QUANTIZATION,
                 gpu_memory_utilization=0.6,
                 # Increase max_num_seqs to handle more concurrent requests
-                max_num_seqs=256,
+                max_num_seqs=1, # was 256
             )
             self.llm_engine = AsyncLLMEngine.from_engine_args(engine_args)
             print("vLLM engine loaded successfully.")
