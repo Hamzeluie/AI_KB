@@ -262,7 +262,7 @@ class LLMManager:
                 quantization=self.config.QUANTIZATION,
                 gpu_memory_utilization=0.6,
                 # Increase max_num_seqs to handle more concurrent requests
-                max_num_seqs=1, # was 256
+                max_num_seqs=1,  # was 256
             )
             self.llm_engine = AsyncLLMEngine.from_engine_args(engine_args)
             print("vLLM engine loaded successfully.")
@@ -334,9 +334,27 @@ class ChatSession:
 
         self.temperature: float = config.TEMPERATURE
         self.max_tokens: int = config.MAX_TOKENS
+        self.update_last_assistant: bool = False
+        self.update_last_user: bool = False
 
     def add_message(self, role: str, content: str):
         self.chat_history.append({"role": role, "content": content})
+
+    def update_last_user_message(self, content: str):
+        for i in range(len(self.chat_history) - 1, -1, -1):
+            if self.chat_history[i]["role"] == "user":
+                self.chat_history[i]["content"] += " " + content.strip()
+                return
+        # If no assistant message exists, add one
+        self.add_message("user", content.strip())
+
+    def update_last_assistant_message(self, content: str):
+        for i in range(len(self.chat_history) - 1, -1, -1):
+            if self.chat_history[i]["role"] == "assistant":
+                self.chat_history[i]["content"] += " " + content.strip()
+                return
+        # If no assistant message exists, add one
+        self.add_message("assistant", content.strip())
 
     def get_formatted_prompt(self) -> str:
         """Builds the final prompt for the LLM, trimming history if necessary."""

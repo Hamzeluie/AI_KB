@@ -6,15 +6,6 @@ from typing import AsyncGenerator, Dict, List, Optional
 
 import aiohttp
 import redis.asyncio as redis
-from agent_architect.datatype_abstraction import Features, RAGFeatures, TextFeatures
-from agent_architect.models_abstraction import (
-    AbstractAsyncModelInference,
-    AbstractInferenceServer,
-    AbstractQueueManagerServer,
-    DynamicBatchManager,
-)
-from agent_architect.session_abstraction import AgentSessions, SessionStatus
-from agent_architect.utils import go_next_service
 from fastapi import FastAPI
 from model_with_inference_engine import ChatSession, LLMConfig, LLMManager
 from model_with_inference_engine import config as llm_config
@@ -24,6 +15,16 @@ from utils import (  # Ensure truncated_json_dumps is available in utils
     truncated_json_dumps,
 )
 from vllm import SamplingParams  # <-- ADD THIS
+
+from agent_architect.datatype_abstraction import Features, RAGFeatures, TextFeatures
+from agent_architect.models_abstraction import (
+    AbstractAsyncModelInference,
+    AbstractInferenceServer,
+    AbstractQueueManagerServer,
+    DynamicBatchManager,
+)
+from agent_architect.session_abstraction import AgentSessions, SessionStatus
+from agent_architect.utils import go_next_service
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -37,18 +38,43 @@ PUNCTUATION_MARKS = {".", "!", "?", ";", ":", "\n"}
 MAX_BUFFER_WORDS = 5  # or use char limit like MAX_BUFFER_CHARS = 100
 MAX_BUFFER_CHARS = 5000
 
-SYSTEM_MESSAGE_TEMPLATE_DEV = get_env_variable("SYSTEM_MESSAGE_TEMPLATE_DEV")
-SYSTEM_PROMPT = SYSTEM_MESSAGE_TEMPLATE_DEV.format(
-    owner_name="Fadi",
-    owner_subject_pronouns="he",
-    owner_object_pronouns="him",
-    owner_possessive_adjectives="his",
-)
+
+# SYSTEM_MESSAGE_TEMPLATE_DEV = get_env_variable("SYSTEM_MESSAGE_TEMPLATE_DEV")
+# SYSTEM_PROMPT = SYSTEM_MESSAGE_TEMPLATE_DEV.format(
+#     owner_name="فادی",
+#     owner_subject_pronouns="he",
+#     owner_object_pronouns="him",
+#     owner_possessive_adjectives="his",
+# )
+
+# SYSTEM_PROMPT = get_env_variable("SYSTEM_MESSAGE_TEMPLATE_TEST")
+SYSTEM_PROMPT = "you are a chat agent assistant. respond to the user queries based on the context information provided. if the context does not contain the answer, respond with 'i don't know'. be concise and clear."
 
 
 def clean_text_simple(text):
     # Only allow letters, digits, space, and ?, $, %, ., ,, !, -, (, )
     return re.sub(r"[^a-zA-Z0-9\s?,$%.!()':-]", "", text)
+
+
+def clean_arabic_text_simple(text):
+    # يسمح فقط بالأحرف الإنجليزية (الكبيرة والصغيرة) والأحرف العربية والأرقام والمسافة والرموز المحددة.
+    # [a-zA-Z] : الأحرف الإنجليزية
+    # \u0600-\u06FF : نطاق معظم الأحرف العربية في يونيكود
+    # 0-9 : الأرقام
+    # \s : المسافة البيضاء (Space)
+    # ?,$%.!()':- : الرموز المحددة
+
+    arabic_range = r"\u0600-\u06FF"
+
+    # يتم استخدام علم re.UNICODE لضمان معالجة النطاقات غير اللاتينية بشكل صحيح.
+    # التعبير الجديد هو: [^a-zA-Z\s0-9?,$%.!()':- و الأحرف العربية]
+
+    return re.sub(
+        r"[^a-zA-Z0-9\s?,$%.!()':-{}".format(arabic_range) + r"]",
+        "",
+        text,
+        flags=re.UNICODE,
+    )
 
 
 # print(type(SYSTEM_PROMPT))
@@ -96,6 +122,7 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                 system_prompt = response.json()['data']['user']['agents'][req.owner_id]['system_prompt']
                 kb_limit = response.get("kb_limit", 5)
                 """
+                print(SYSTEM_PROMPT)
                 self.chat_sessions[req.sid] = ChatSession(
                     llm_manager=self.llm_manager,
                     system_instructions=SYSTEM_PROMPT,
@@ -120,7 +147,7 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                 )
                 or "No relevant context found."
             )
-            augmented_prompt = f"**Retrieved Context:**\n{context_str}\n\n**User Question:**\n{req.text}"
+            augmented_prompt = f"**Retrieved Context:**\n {context_str} \n\n**User Question:**\n {req.text}"
             session.add_message("user", augmented_prompt)
             final_prompt = session.get_formatted_prompt()
             sampling_params = SamplingParams(
@@ -131,12 +158,13 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                 stop=["<|im_end|>", "\n<|im_start|>"],
             )
             # request_id = f"inf-{req.sid}-{uuid.uuid4().hex[:8]}"
+            session.update_last_assistant = False
             request_id = req.sid
             current_text = ""
             prev_text = ""
             buffer = ""  # accumulates tokens until we decide to yield
             output_word = ""
-
+            print("=>" * 10, final_prompt)
             async for output in self.llm_manager.llm_engine.generate(
                 prompt=final_prompt,
                 sampling_params=sampling_params,
@@ -153,8 +181,9 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                 current_text = output.outputs[0].text
                 delta = current_text[len(prev_text) :]
                 prev_text = current_text
+
                 delta = clean_text_simple(delta)
-                # print("DELTA:", repr(delta))
+                # delta = clean_arabic_text_simple(delta)
 
                 if not delta:
                     continue
@@ -175,6 +204,14 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                             priority=req.priority,
                             created_at=time.time(),
                         )
+                        #
+                        if session.update_last_assistant:
+                            session.update_last_assistant_message(output_word)
+                            session.update_last_assistant = False
+                            print("5-5" * 10, session.chat_history)
+                        else:
+                            session.add_message("assistant", output_word)
+                            print("5" * 10, session.chat_history)
                         buffer = ""
                         output_word = ""
                         yield text_feat
@@ -191,6 +228,14 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                             priority=req.priority,
                             created_at=time.time(),
                         )
+                        #
+                        if session.update_last_assistant:
+                            session.update_last_assistant_message(output_word)
+                            session.update_last_assistant = False
+                            print("7-7" * 10, session.chat_history)
+                        else:
+                            session.add_message("assistant", output_word)
+                            print("7" * 10, session.chat_history)
                         yield text_feat
                         buffer = ""
                         break
@@ -217,9 +262,17 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                         priority=req.priority,
                         created_at=time.time(),
                     )
+
+                    #
+                    if session.update_last_assistant:
+                        session.update_last_assistant_message(output_word)
+                        print("9-9" * 10, session.chat_history)
+                    else:
+                        session.add_message("assistant", output_word)
+                        session.update_last_assistant = True
+                        print("9" * 10, session.chat_history)
                     output_word = ""
                     yield text_feat
-            session.add_message("assistant", current_text)
             output_word = ""
         except Exception as e:
             logger.error(f"Error processing request {req.sid}: {e}", exc_info=True)
