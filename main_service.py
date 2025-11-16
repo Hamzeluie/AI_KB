@@ -6,15 +6,6 @@ from typing import AsyncGenerator, Dict, List, Optional
 
 import aiohttp
 import redis.asyncio as redis
-from agent_architect.datatype_abstraction import Features, RAGFeatures, TextFeatures
-from agent_architect.models_abstraction import (
-    AbstractAsyncModelInference,
-    AbstractInferenceServer,
-    AbstractQueueManagerServer,
-    DynamicBatchManager,
-)
-from agent_architect.session_abstraction import AgentSessions, SessionStatus
-from agent_architect.utils import go_next_service
 from fastapi import FastAPI
 from model_with_inference_engine import ChatSession, LLMConfig, LLMManager
 from model_with_inference_engine import config as llm_config
@@ -24,6 +15,16 @@ from utils import (  # Ensure truncated_json_dumps is available in utils
     truncated_json_dumps,
 )
 from vllm import SamplingParams  # <-- ADD THIS
+
+from agent_architect.datatype_abstraction import Features, RAGFeatures, TextFeatures
+from agent_architect.models_abstraction import (
+    AbstractAsyncModelInference,
+    AbstractInferenceServer,
+    AbstractQueueManagerServer,
+    DynamicBatchManager,
+)
+from agent_architect.session_abstraction import AgentSessions, SessionStatus
+from agent_architect.utils import go_next_service
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -44,6 +45,7 @@ SYSTEM_PROMPT = SYSTEM_MESSAGE_TEMPLATE_DEV.format(
     owner_object_pronouns="him",
     owner_possessive_adjectives="his",
 )
+SYSTEM_PROMPT = "You are Nour, a helpful AI assistant. Use the provided context to answer the user's question. you can use your own history as well."
 
 
 def clean_text_simple(text):
@@ -121,6 +123,7 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                 or "No relevant context found."
             )
             augmented_prompt = f"**Retrieved Context:**\n{context_str}\n\n**User Question:**\n{req.text}"
+
             session.add_message("user", augmented_prompt)
             final_prompt = session.get_formatted_prompt()
             sampling_params = SamplingParams(
@@ -136,7 +139,6 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
             prev_text = ""
             buffer = ""  # accumulates tokens until we decide to yield
             output_word = ""
-
             async for output in self.llm_manager.llm_engine.generate(
                 prompt=final_prompt,
                 sampling_params=sampling_params,
@@ -148,13 +150,16 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                     logger.info(
                         f"🟡 Aborted request {request_id} for inactive session {req.sid}"
                     )
+                    session.add_message(
+                        "system",
+                        "The assistant response was interrupted by the user and not delivered.",
+                    )
                     return
 
                 current_text = output.outputs[0].text
                 delta = current_text[len(prev_text) :]
                 prev_text = current_text
                 delta = clean_text_simple(delta)
-                # print("DELTA:", repr(delta))
 
                 if not delta:
                     continue
@@ -175,6 +180,11 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                             priority=req.priority,
                             created_at=time.time(),
                         )
+                        print("=" * 30)
+                        print("SID:", req.sid)
+                        print("user prompt:", req.text)
+                        print("LLM Response:", output_word)
+
                         buffer = ""
                         output_word = ""
                         yield text_feat
@@ -191,6 +201,10 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                             priority=req.priority,
                             created_at=time.time(),
                         )
+                        print("=" * 30)
+                        print("SID:", req.sid)
+                        print("user prompt:", req.text)
+                        print("LLM Response:", output_word)
                         yield text_feat
                         buffer = ""
                         break
@@ -217,6 +231,10 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                         priority=req.priority,
                         created_at=time.time(),
                     )
+                    print("=" * 30)
+                    print("SID:", req.sid)
+                    print("user prompt:", req.text)
+                    print("LLM Response:", output_word)
                     output_word = ""
                     yield text_feat
             session.add_message("assistant", current_text)
@@ -345,9 +363,10 @@ class RedisQueueManager(AbstractQueueManagerServer):
             channels_steps=status_obj.channels_steps,
             last_channel=status_obj.last_channel,
             prioriry=result.priority,
+            sid=result.sid,
         )
         await self.redis_client.lpush(next_service, result.to_json())
-        # logger.info(f"Result pushed for request {result.sid}, to {next_service}")
+        logger.info(f"Result pushed for request {result.sid}, to {next_service}")
 
 
 class InferenceService(AbstractInferenceServer):

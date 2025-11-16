@@ -84,7 +84,7 @@ async def vector_search(
     payload = {"query_text": query_text, "kb_id": kb_id, "limit": limit}
 
     try:
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=1.0) as client:
             response = await client.post(url, headers=headers, json=payload)
             response.raise_for_status()  # Raises exception for 4xx/5xx responses
 
@@ -260,9 +260,9 @@ class LLMManager:
                 model=self.config.LOCAL_MODEL_DIR,
                 dtype=self.config.DTYPE,
                 quantization=self.config.QUANTIZATION,
-                gpu_memory_utilization=0.6,
+                gpu_memory_utilization=0.9,
                 # Increase max_num_seqs to handle more concurrent requests
-                max_num_seqs=1, # was 256
+                max_num_seqs=30,  # was 256
             )
             self.llm_engine = AsyncLLMEngine.from_engine_args(engine_args)
             print("vLLM engine loaded successfully.")

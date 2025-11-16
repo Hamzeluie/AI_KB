@@ -5,7 +5,7 @@
 # =========================
 OWNER_ID="+12345952496"
 KB_ID="kb+12345952496_en"
-API_KEY="test"                # Must match config.yaml: API_KEY
+API_KEY="91a64066-74a1-4687-ae2c-122362469cc9"                # Must match config.yaml: API_KEY
 
 # Orchestrator (Dashboard) Details
 DASHBOARD_HOST="${DASHBOARD_HOST:-0.0.0.0}" 

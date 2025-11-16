@@ -6,7 +6,6 @@ from fastmcp import FastMCP
 from dotenv import load_dotenv
 import os
 
-# ✅ MODERN WebSocket import
 from websockets.asyncio.client import connect as websockets_connect
 
 
