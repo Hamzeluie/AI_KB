@@ -1,0 +1,67 @@
+[
+  {
+    "total_requests": 6,
+    "successful_requests": 0,
+    "failed_requests": 6,
+    "avg_response_time": 0,
+    "min_response_time": 0,
+    "max_response_time": 0,
+    "p95_response_time": 0,
+    "throughput_requests_per_second": 0,
+    "avg_tokens_per_second": 0,
+    "config_name": "Low Load",
+    "test_duration": 0.06730365753173828
+  },
+  {
+    "total_requests": 20,
+    "successful_requests": 0,
+    "failed_requests": 20,
+    "avg_response_time": 0,
+    "min_response_time": 0,
+    "max_response_time": 0,
+    "p95_response_time": 0,
+    "throughput_requests_per_second": 0,
+    "avg_tokens_per_second": 0,
+    "config_name": "Medium Load",
+    "test_duration": 0.2099161148071289
+  },
+  {
+    "total_requests": 50,
+    "successful_requests": 0,
+    "failed_requests": 50,
+    "avg_response_time": 0,
+    "min_response_time": 0,
+    "max_response_time": 0,
+    "p95_response_time": 0,
+    "throughput_requests_per_second": 0,
+    "avg_tokens_per_second": 0,
+    "config_name": "High Load",
+    "test_duration": 0.5238909721374512
+  },
+  {
+    "total_requests": 20,
+    "successful_requests": 0,
+    "failed_requests": 20,
+    "avg_response_time": 0,
+    "min_response_time": 0,
+    "max_response_time": 0,
+    "p95_response_time": 0,
+    "throughput_requests_per_second": 0,
+    "avg_tokens_per_second": 0,
+    "config_name": "High Temp",
+    "test_duration": 0.21022343635559082
+  },
+  {
+    "total_requests": 20,
+    "successful_requests": 0,
+    "failed_requests": 20,
+    "avg_response_time": 0,
+    "min_response_time": 0,
+    "max_response_time": 0,
+    "p95_response_time": 0,
+    "throughput_requests_per_second": 0,
+    "avg_tokens_per_second": 0,
+    "config_name": "Low Temp",
+    "test_duration": 0.20953941345214844
+  }
+]

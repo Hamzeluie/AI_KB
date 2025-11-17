@@ -1,4 +1,5 @@
 import asyncio
+import json
 import logging
 import time
 import uuid
@@ -83,26 +84,34 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
         """Process a single InferenceRequest."""
         try:
             if req.sid not in self.chat_sessions:
+
                 # ================================
                 # CALL fro getting system prompt and temprature and ...
                 # ================================
-                """
+                ####
+
                 async with aiohttp.ClientSession() as session:
                     params = {"user_id": str(req.owner_id)}
-                    response = await session.get(DASHBOARD_URL, params=params, headers=HEADER)
+                    response = await session.get(
+                        DASHBOARD_URL, params=params, headers=HEADER
+                    )
 
-                response = response.json()
-                kb_ids = []
-                for kb_id in response.json()['data']['user']['agents'][0]['knowledge_bases']:
-                    kb_ids.append(kb_id['vexu_ai_kb_id'])
-                system_prompt = response.json()['data']['user']['agents'][req.owner_id]['system_prompt']
-                kb_limit = response.get("kb_limit", 5)
-                """
+                    response_data = await response.json()
+                    kb_ids = []
+                    for kb_id in response_data["data"]["user"]["agents"][int(req.agent_id)]["knowledge_bases"]:
+                        kb_ids.append(kb_id["vexu_ai_kb_id"])
+                    
+                    system_prompt = response_data["data"]["user"]["agents"][
+                        int(req.agent_id)
+                    ]["system_prompt"]
+                    kb_limit = response_data.get("kb_limit", 5)
+
+                ####
                 self.chat_sessions[req.sid] = ChatSession(
                     llm_manager=self.llm_manager,
-                    system_instructions=SYSTEM_PROMPT,
-                    kb_ids=["kb+12345952496_en"],
-                    kb_limit=5,
+                    system_instructions=system_prompt,
+                    kb_ids=kb_ids,
+                    kb_limit=kb_limit,
                     config=self.config,
                 )
             session = self.chat_sessions[req.sid]
@@ -113,6 +122,7 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                 kb_id=session.kb_ids,
                 limit=session.kb_limit,
             )
+            print("SEARCH_DBS =>", req.owner_id, req.text, session.kb_ids)
             context_str = (
                 "\n\n".join(
                     [
@@ -180,11 +190,6 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                             priority=req.priority,
                             created_at=time.time(),
                         )
-                        print("=" * 30)
-                        print("SID:", req.sid)
-                        print("user prompt:", req.text)
-                        print("LLM Response:", output_word)
-
                         buffer = ""
                         output_word = ""
                         yield text_feat
@@ -201,10 +206,6 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                             priority=req.priority,
                             created_at=time.time(),
                         )
-                        print("=" * 30)
-                        print("SID:", req.sid)
-                        print("user prompt:", req.text)
-                        print("LLM Response:", output_word)
                         yield text_feat
                         buffer = ""
                         break
@@ -231,10 +232,6 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                         priority=req.priority,
                         created_at=time.time(),
                     )
-                    print("=" * 30)
-                    print("SID:", req.sid)
-                    print("user prompt:", req.text)
-                    print("LLM Response:", output_word)
                     output_word = ""
                     yield text_feat
             session.add_message("assistant", current_text)
