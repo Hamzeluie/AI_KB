@@ -89,31 +89,55 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                 # CALL fro getting system prompt and temprature and ...
                 # ================================
                 ####
+                try:
 
-                async with aiohttp.ClientSession() as session:
-                    params = {"user_id": str(req.owner_id)}
-                    response = await session.get(
-                        DASHBOARD_URL, params=params, headers=HEADER
+                    async with aiohttp.ClientSession() as session:
+                        params = {"user_id": str(req.owner_id)}
+                        response = await session.get(
+                            DASHBOARD_URL, params=params, headers=HEADER
+                        )
+                        response_data = await response.json()
+                        target_agent = next(
+                            (
+                                agent
+                                for agent in response_data["data"]["user"]["agents"]
+                                if agent["id"] == int(req.agent_id)
+                            ),
+                            None,
+                        )
+                        system_prompt = SYSTEM_PROMPT
+                        kb_ids = []
+                        kb_limit = 5
+                        if target_agent:
+                            kb_ids = [
+                                kb["vexu_ai_kb_id"]
+                                for kb in target_agent["knowledge_bases"]
+                            ]
+                            system_prompt = target_agent["system_prompt"]
+                            kb_limit = response_data.get("kb_limit", 5)
+                        else:
+                            print(f"Agent with ID {req.agent_id} not found")
+
+                    ####
+                    self.chat_sessions[req.sid] = ChatSession(
+                        llm_manager=self.llm_manager,
+                        system_instructions=system_prompt,
+                        kb_ids=kb_ids,
+                        kb_limit=kb_limit,
+                        config=self.config,
+                    )
+                except:
+                    logger.info(
+                        f"Falling back to default system prompt. for {req.sid}, owner_id={req.owner_id}"
+                    )
+                    self.chat_sessions[req.sid] = ChatSession(
+                        llm_manager=self.llm_manager,
+                        system_instructions=SYSTEM_PROMPT,
+                        kb_ids=[],
+                        kb_limit=1,
+                        config=self.config,
                     )
 
-                    response_data = await response.json()
-                    kb_ids = []
-                    for kb_id in response_data["data"]["user"]["agents"][int(req.agent_id)]["knowledge_bases"]:
-                        kb_ids.append(kb_id["vexu_ai_kb_id"])
-                    
-                    system_prompt = response_data["data"]["user"]["agents"][
-                        int(req.agent_id)
-                    ]["system_prompt"]
-                    kb_limit = response_data.get("kb_limit", 5)
-
-                ####
-                self.chat_sessions[req.sid] = ChatSession(
-                    llm_manager=self.llm_manager,
-                    system_instructions=system_prompt,
-                    kb_ids=kb_ids,
-                    kb_limit=kb_limit,
-                    config=self.config,
-                )
             session = self.chat_sessions[req.sid]
             # RAG retrieval
             retrieved_docs = await vector_search(
@@ -122,7 +146,6 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                 kb_id=session.kb_ids,
                 limit=session.kb_limit,
             )
-            print("SEARCH_DBS =>", req.owner_id, req.text, session.kb_ids)
             context_str = (
                 "\n\n".join(
                     [
@@ -234,6 +257,7 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                     )
                     output_word = ""
                     yield text_feat
+            # print(f"user:{req.text} LLM output {current_text}")
             session.add_message("assistant", current_text)
             output_word = ""
         except Exception as e:
@@ -363,7 +387,7 @@ class RedisQueueManager(AbstractQueueManagerServer):
             sid=result.sid,
         )
         await self.redis_client.lpush(next_service, result.to_json())
-        logger.info(f"Result pushed for request {result.sid}, to {next_service}")
+        # logger.info(f"Result pushed for request {result.sid}, to {next_service}")
 
 
 class InferenceService(AbstractInferenceServer):
