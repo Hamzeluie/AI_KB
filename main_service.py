@@ -39,14 +39,15 @@ PUNCTUATION_MARKS = {".", "!", "?", ";", ":", "\n"}
 MAX_BUFFER_WORDS = 5  # or use char limit like MAX_BUFFER_CHARS = 100
 MAX_BUFFER_CHARS = 5000
 
-SYSTEM_MESSAGE_TEMPLATE_DEV = get_env_variable("SYSTEM_MESSAGE_TEMPLATE_DEV")
+# SYSTEM_MESSAGE_TEMPLATE_DEV = get_env_variable("SYSTEM_MESSAGE_TEMPLATE_DEV")
+SYSTEM_MESSAGE_TEMPLATE_DEV = get_env_variable("SYSTEM_MESSAGE_TEMPLATE_EN")
 SYSTEM_PROMPT = SYSTEM_MESSAGE_TEMPLATE_DEV.format(
     owner_name="Fadi",
     owner_subject_pronouns="he",
     owner_object_pronouns="him",
     owner_possessive_adjectives="his",
 )
-SYSTEM_PROMPT = "You are Nour, a helpful AI assistant. Use the provided context to answer the user's question. you can use your own history as well."
+# SYSTEM_PROMPT = "You are Nour, a helpful AI assistant. Use the provided context to answer the user's question. you can use your own history as well."
 
 
 def clean_text_simple(text):
@@ -93,6 +94,7 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
 
                     async with aiohttp.ClientSession() as session:
                         params = {"user_id": str(req.owner_id)}
+                        print("REQ:", req)
                         response = await session.get(
                             DASHBOARD_URL, params=params, headers=HEADER
                         )
@@ -114,6 +116,8 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                                 for kb in target_agent["knowledge_bases"]
                             ]
                             system_prompt = target_agent["system_prompt"]
+                            print("*"*30)
+                            print(system_prompt)
                             kb_limit = response_data.get("kb_limit", 5)
                         else:
                             print(f"Agent with ID {req.agent_id} not found")
@@ -192,7 +196,7 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                 current_text = output.outputs[0].text
                 delta = current_text[len(prev_text) :]
                 prev_text = current_text
-                delta = clean_text_simple(delta)
+                # delta = clean_text_simple(delta)
 
                 if not delta:
                     continue
@@ -257,7 +261,7 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                     )
                     output_word = ""
                     yield text_feat
-            # print(f"user:{req.text} LLM output {current_text}")
+            print(f"user:{req.text} LLM output {current_text}")
             session.add_message("assistant", current_text)
             output_word = ""
         except Exception as e:
@@ -387,7 +391,7 @@ class RedisQueueManager(AbstractQueueManagerServer):
             sid=result.sid,
         )
         await self.redis_client.lpush(next_service, result.to_json())
-        # logger.info(f"Result pushed for request {result.sid}, to {next_service}")
+        logger.info(f"Result pushed for request {result.sid}, to {next_service}")
 
 
 class InferenceService(AbstractInferenceServer):

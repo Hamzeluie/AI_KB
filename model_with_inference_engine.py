@@ -260,7 +260,7 @@ class LLMManager:
                 model=self.config.LOCAL_MODEL_DIR,
                 dtype=self.config.DTYPE,
                 quantization=self.config.QUANTIZATION,
-                gpu_memory_utilization=0.9,
+                gpu_memory_utilization=0.6,
                 # Increase max_num_seqs to handle more concurrent requests
                 max_num_seqs=30,  # was 256
             )
