@@ -7,6 +7,15 @@ from typing import AsyncGenerator, Dict, List, Optional
 
 import aiohttp
 import redis.asyncio as redis
+from agent_architect.datatype_abstraction import Features, RAGFeatures, TextFeatures
+from agent_architect.models_abstraction import (
+    AbstractAsyncModelInference,
+    AbstractInferenceServer,
+    AbstractQueueManagerServer,
+    DynamicBatchManager,
+)
+from agent_architect.session_abstraction import AgentSessions, SessionStatus
+from agent_architect.utils import go_next_service
 from fastapi import FastAPI
 from model_with_inference_engine import ChatSession, LLMConfig, LLMManager
 from model_with_inference_engine import config as llm_config
@@ -17,16 +26,6 @@ from utils import (  # Ensure truncated_json_dumps is available in utils
 )
 from vllm import SamplingParams  # <-- ADD THIS
 
-from agent_architect.datatype_abstraction import Features, RAGFeatures, TextFeatures
-from agent_architect.models_abstraction import (
-    AbstractAsyncModelInference,
-    AbstractInferenceServer,
-    AbstractQueueManagerServer,
-    DynamicBatchManager,
-)
-from agent_architect.session_abstraction import AgentSessions, SessionStatus
-from agent_architect.utils import go_next_service
-
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 DASHBOARD_URL = "https://api-dev.vexu.ai/api/v1/server/user-profile"
@@ -36,13 +35,16 @@ HEADER = {
 import re
 
 PUNCTUATION_MARKS = {".", "!", "?", ";", ":", "\n"}
-MAX_BUFFER_WORDS = 5  # or use char limit like MAX_BUFFER_CHARS = 100
+MAX_BUFFER_WORDS = 15  # or use char limit like MAX_BUFFER_CHARS = 100
 MAX_BUFFER_CHARS = 5000
 
 # SYSTEM_MESSAGE_TEMPLATE_DEV = get_env_variable("SYSTEM_MESSAGE_TEMPLATE_DEV")
 SYSTEM_MESSAGE_TEMPLATE_DEV = get_env_variable("SYSTEM_MESSAGE_TEMPLATE_EN")
-SYSTEM_PROMPT = SYSTEM_MESSAGE_TEMPLATE_DEV.format(
-    owner_name="Fadi",
+SYSTEM_MESSAGE_TEMPLATE_AR = get_env_variable("SYSTEM_MESSAGE_TEMPLATE_AR")
+SYSTEM_MESSAGE_TEMPLATE_AR2 = get_env_variable("SYSTEM_MESSAGE_TEMPLATE_AR2")
+SYSTEM_PROMPT = SYSTEM_MESSAGE_TEMPLATE_AR.format(
+    # owner_name="Fadi",
+    owner_name="فادی",
     owner_subject_pronouns="he",
     owner_object_pronouns="him",
     owner_possessive_adjectives="his",
@@ -116,7 +118,7 @@ class AsyncRagLlmInference(AbstractAsyncModelInference):
                                 for kb in target_agent["knowledge_bases"]
                             ]
                             system_prompt = target_agent["system_prompt"]
-                            print("*"*30)
+                            print("*" * 30)
                             print(system_prompt)
                             kb_limit = response_data.get("kb_limit", 5)
                         else:
@@ -390,6 +392,7 @@ class RedisQueueManager(AbstractQueueManagerServer):
             prioriry=result.priority,
             sid=result.sid,
         )
+        print("Next service:", next_service)
         await self.redis_client.lpush(next_service, result.to_json())
         logger.info(f"Result pushed for request {result.sid}, to {next_service}")
 

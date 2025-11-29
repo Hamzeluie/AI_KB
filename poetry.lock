@@ -14,7 +14,7 @@ develop = false
 type = "git"
 url = "https://github.com/Hamzeluie/agent_architect.git"
 reference = "HEAD"
-resolved_reference = "f8c73d2a2afdbe76db757d9e012993d55bf1583f"
+resolved_reference = "8d0417591728b31d6c6d5bc5e0f1461c64693fad"
 
 [[package]]
 name = "aiohappyeyeballs"
@@ -7603,4 +7603,4 @@ cffi = ["cffi (>=1.17) ; python_version >= \"3.13\" and platform_python_implemen
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.11,<3.14"
-content-hash = "2e5d4e46dd6f2d722bef59f11eb9fec3115445ea7371121bff483c34f3a10045"
+content-hash = "498d448c5d5b61d3c2306ce5013ebd25c6b2e9154958f3fa00bc19144dcf8311"
